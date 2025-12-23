@@ -586,7 +586,11 @@ class RAGNodes:
                             "page": doc["metadata"].get("page"),
                             "chunk_id": doc["metadata"].get("chunk_id", ""),
                             "relevance_score": score_pct,
-                            "content_preview": extract_relevant_snippet(query, doc["content"]),
+                            "content_preview": extract_relevant_snippet(
+                                query,
+                                doc["content"],
+                                parent_context=doc["metadata"].get("parent_context"),
+                            ),
                         }
 
                 sources = list(sources_by_file.values())
@@ -630,7 +634,11 @@ class RAGNodes:
                         "page": doc["metadata"].get("page"),
                         "chunk_id": doc["metadata"].get("chunk_id", ""),
                         "relevance_score": score,
-                        "content_preview": extract_relevant_snippet(query, doc["content"]),
+                        "content_preview": extract_relevant_snippet(
+                            query,
+                            doc["content"],
+                            parent_context=doc["metadata"].get("parent_context"),
+                        ),
                     }
 
         sources = list(sources_by_file.values())
