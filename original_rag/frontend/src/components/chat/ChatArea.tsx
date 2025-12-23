@@ -1,4 +1,4 @@
-import { Menu, Sun, Moon, FileText, PanelRightOpen, PanelRightClose } from 'lucide-react';
+import { Menu, Sun, Moon, FileText, PanelRightOpen, PanelRightClose, PanelLeftOpen, PanelLeftClose } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { MessageList } from './MessageList';
@@ -36,17 +36,23 @@ export function ChatArea() {
     <div className="flex-1 flex flex-col h-full min-w-0">
       {/* Header Bar */}
       <header className="h-14 border-b border-border bg-card flex items-center px-4 gap-4 shrink-0">
-        {/* Hamburger menu - always visible when sidebar is closed */}
-        {!sidebarOpen && (
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setSidebarOpen(true)}
-            className="h-9 w-9 shrink-0"
-          >
-            <Menu className="h-5 w-5" />
-          </Button>
-        )}
+        {/* Left sidebar toggle - shows hamburger on mobile, panel toggle on desktop */}
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setSidebarOpen(!sidebarOpen)}
+          className="h-9 w-9 shrink-0"
+          title={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}
+        >
+          {/* Mobile: hamburger icon */}
+          <Menu className="h-5 w-5 lg:hidden" />
+          {/* Desktop: panel toggle icon */}
+          {sidebarOpen ? (
+            <PanelLeftClose className="h-5 w-5 hidden lg:block" />
+          ) : (
+            <PanelLeftOpen className="h-5 w-5 hidden lg:block" />
+          )}
+        </Button>
 
         {/* Title - current chat name */}
         <div className="flex-1 min-w-0">

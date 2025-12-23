@@ -1,7 +1,13 @@
 import { useState, useRef, useEffect } from 'react';
-import { Plus, Settings, MessageSquare, X, Trash2, FileText, Loader2, Pencil, Check } from 'lucide-react';
+import { Plus, Settings, MessageSquare, X, Trash2, Loader2, Pencil, MoreHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -97,15 +103,7 @@ export function Sidebar() {
 
   return (
     <>
-      {/* 
-        OVERLAY BEHAVIOR CHANGE:
-        - When sidebar is open AND idle: overlay is clickable to close sidebar, but doesn't block pointer events on chat
-        - When streaming: overlay prevents sidebar interactions (not chat interactions)
-        
-        Actually, let's just remove the blocking overlay entirely.
-        The sidebar slides over - clicking outside closes it.
-        This is the standard mobile drawer pattern.
-      */}
+      {/* Mobile overlay */}
       {sidebarOpen && (
         <div
           className="fixed inset-0 bg-foreground/20 z-40 lg:hidden"
@@ -114,14 +112,17 @@ export function Sidebar() {
         />
       )}
 
-      {/* Sidebar */}
+      {/* Sidebar - Fixed on mobile, in-flow on desktop */}
       <aside
         className={cn(
-          'fixed z-50 h-full w-sidebar bg-sidebar border-r border-sidebar-border flex flex-col transition-transform duration-200 ease-out',
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+          'h-full w-sidebar bg-sidebar border-r border-sidebar-border flex flex-col transition-all duration-200 ease-out shrink-0',
+          // Mobile: fixed overlay
+          'fixed z-50 lg:relative lg:z-auto',
+          // Visibility
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:w-0 lg:translate-x-0 lg:border-0 lg:overflow-hidden'
         )}
       >
-        {/* Header with app name and close button */}
+        {/* Header with app name and close button (mobile only) */}
         <div className="flex items-center justify-between h-14 px-4 border-b border-sidebar-border bg-sidebar-hover/50">
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center">
@@ -129,11 +130,12 @@ export function Sidebar() {
             </div>
             <span className="font-semibold text-sidebar-foreground">RAG Chat</span>
           </div>
+          {/* Close button - only on mobile, desktop uses header toggle */}
           <Button
             variant="ghost"
             size="icon"
             onClick={() => setSidebarOpen(false)}
-            className="h-8 w-8"
+            className="h-8 w-8 lg:hidden"
           >
             <X className="h-4 w-4" />
           </Button>
@@ -170,14 +172,14 @@ export function Sidebar() {
                 <p className="text-xs text-muted-foreground mt-1">Start a new chat to begin</p>
               </div>
             ) : (
-              <div className="space-y-1 px-2">
+              <div className="space-y-0.5 px-2">
                 {chats.map((chat) => (
                   <div
                     key={chat.id}
                     className={cn(
-                      'group flex items-center gap-1.5 px-2 py-2 rounded-lg transition-colors',
+                      'group relative flex items-center py-2.5 px-3 rounded-lg transition-colors',
                       currentChatId === chat.id
-                        ? 'bg-sidebar-active border-l-2 border-sidebar-active-border'
+                        ? 'bg-sidebar-active'
                         : 'hover:bg-sidebar-hover',
                       // Disable interaction during streaming (except current chat for viewing)
                       isStreaming && currentChatId !== chat.id
@@ -185,88 +187,76 @@ export function Sidebar() {
                         : 'cursor-pointer'
                     )}
                     onClick={() => handleChatSelect(chat.id)}
-                    onDoubleClick={(e) => {
-                      if (isStreaming) return;
-                      e.stopPropagation();
-                      startEditing(chat);
-                    }}
                   >
-                    <MessageSquare className="h-4 w-4 text-muted-foreground shrink-0" />
-                    <div className="flex-1 min-w-0 overflow-hidden">
+                    {/* Title - no icon, just text */}
+                    <div className="flex-1 min-w-0 pr-2">
                       {editingChatId === chat.id ? (
-                        <div className="flex items-center gap-1">
-                          <input
-                            ref={editInputRef}
-                            type="text"
-                            value={editingTitle}
-                            onChange={(e) => setEditingTitle(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                e.preventDefault();
-                                saveTitle();
-                              } else if (e.key === 'Escape') {
-                                cancelEditing();
-                              }
-                            }}
-                            onBlur={saveTitle}
-                            onClick={(e) => e.stopPropagation()}
-                            className="w-full text-sm font-medium bg-background border border-input rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-ring"
-                          />
-                        </div>
+                        <input
+                          ref={editInputRef}
+                          type="text"
+                          value={editingTitle}
+                          onChange={(e) => setEditingTitle(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              saveTitle();
+                            } else if (e.key === 'Escape') {
+                              cancelEditing();
+                            }
+                          }}
+                          onBlur={saveTitle}
+                          onClick={(e) => e.stopPropagation()}
+                          className="w-full text-sm bg-background border border-input rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-ring"
+                        />
                       ) : (
-                        <>
-                          <p className="text-sm font-medium truncate text-sidebar-foreground">
-                            {chat.title}
-                          </p>
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                            <span className="truncate">
-                              {chat.messages.length > 0
-                                ? chat.messages[0].content.slice(0, 30)
-                                : 'No messages'}
-                            </span>
-                            {chat.documents.length > 0 && (
-                              <span className="flex items-center gap-0.5 shrink-0">
-                                <FileText className="h-3 w-3" />
-                                {chat.documents.length}
-                              </span>
-                            )}
-                          </div>
-                        </>
+                        <p className="text-sm truncate text-sidebar-foreground">
+                          {chat.title}
+                        </p>
                       )}
                     </div>
+
+                    {/* Single "..." menu button */}
                     {editingChatId !== chat.id && (
-                      <div className={cn(
-                        "flex items-center gap-0.5 shrink-0 transition-opacity",
-                        currentChatId === chat.id ? "opacity-100" : "opacity-0 group-hover:opacity-100",
-                        isStreaming && "opacity-50"
-                      )}>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          disabled={isStreaming}
-                          className="h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-sidebar-hover disabled:opacity-50 disabled:cursor-not-allowed"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            startEditing(chat);
-                          }}
-                          title="Rename chat"
-                        >
-                          <Pencil className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          disabled={isStreaming}
-                          className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10 disabled:opacity-50 disabled:cursor-not-allowed"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setDeleteConfirmChat(chat);
-                          }}
-                          title="Delete chat"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button
+                            type="button"
+                            disabled={isStreaming}
+                            className={cn(
+                              "h-7 w-7 shrink-0 rounded-md flex items-center justify-center",
+                              "text-muted-foreground hover:text-foreground hover:bg-sidebar-hover",
+                              "opacity-0 group-hover:opacity-100 data-[state=open]:opacity-100 transition-opacity",
+                              "focus:outline-none",
+                              isStreaming && "opacity-50 cursor-not-allowed"
+                            )}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-40">
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              startEditing(chat);
+                            }}
+                            className="cursor-pointer"
+                          >
+                            <Pencil className="h-4 w-4 mr-2" />
+                            Rename
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDeleteConfirmChat(chat);
+                            }}
+                            className="cursor-pointer text-destructive focus:text-destructive"
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     )}
                   </div>
                 ))}
