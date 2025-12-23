@@ -1,0 +1,45 @@
+# Archived/deprecated code
+ARCHIVED/
+
+# Testing methodology (reference docs, not code)
+testing/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+
+# Virtual environments
+venv/
+env/
+.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+*.log
+
+# Node modules (frontend has its own)
+node_modules/
+
+# Build outputs
+dist/
+build/
+*.egg-info/
+
+# ChromaDB data (regenerated)
+original_rag/backend/chroma_data/
+
+# Temporary files
+*.tmp
+*.temp
+nul

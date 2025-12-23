@@ -1,0 +1,23 @@
+Agentic RAG System Overview
+
+This document describes the Agentic RAG (Retrieval-Augmented Generation) system architecture.
+
+Key Components:
+1. Document Ingestion Pipeline - Handles PDF, TXT, MD, and DOCX files
+2. Vector Store - Uses ChromaDB for document embeddings
+3. LangGraph Pipeline - Implements the RAG workflow with query rewriting
+4. Streaming API - Real-time token streaming to the frontend
+
+The system uses Ollama for local LLM inference with the following models:
+- llama3.2 for chat completion
+- nomic-embed-text for embeddings
+
+Architecture Decision Records (ADRs):
+- ADR-006: Per-chat mode selection (local vs cloud)
+- ADR-007: Chat-scoped document management
+
+Each chat owns its documents. When a chat is deleted, all associated documents
+and vector store embeddings are also deleted (cascade delete).
+
+The frontend is built with React, TypeScript, and Tailwind CSS.
+State management uses Zustand with localStorage persistence.

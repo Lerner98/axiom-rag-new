@@ -1,0 +1,212 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+@layer base {
+  :root {
+    --background: 220 14% 96%;
+    --foreground: 224 71% 4%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 224 71% 4%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 224 71% 4%;
+
+    --primary: 217 91% 60%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 220 14% 96%;
+    --secondary-foreground: 224 71% 4%;
+
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 9% 46%;
+
+    --accent: 220 14% 96%;
+    --accent-foreground: 224 71% 4%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 217 91% 60%;
+
+    --radius: 0.75rem;
+
+    /* Custom tokens */
+    --sidebar-width: 280px;
+    --chat-max-width: 800px;
+    
+    --user-bubble: 217 91% 60%;
+    --user-bubble-foreground: 0 0% 100%;
+    
+    --assistant-bubble: 0 0% 100%;
+    --assistant-bubble-foreground: 224 71% 4%;
+    --assistant-bubble-border: 220 13% 91%;
+    
+    --citation: 217 91% 95%;
+    --citation-foreground: 217 91% 40%;
+    --citation-hover: 217 91% 90%;
+
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 224 71% 4%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-hover: 220 14% 96%;
+    --sidebar-active: 217 91% 97%;
+    --sidebar-active-border: 217 91% 60%;
+
+    --sidebar-primary: 217 91% 60%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 14% 96%;
+    --sidebar-accent-foreground: 224 71% 4%;
+    --sidebar-ring: 217 91% 60%;
+  }
+
+  .dark {
+    --background: 224 71% 4%;
+    --foreground: 220 14% 96%;
+
+    --card: 224 47% 8%;
+    --card-foreground: 220 14% 96%;
+
+    --popover: 224 47% 8%;
+    --popover-foreground: 220 14% 96%;
+
+    --primary: 217 91% 60%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 224 47% 12%;
+    --secondary-foreground: 220 14% 96%;
+
+    --muted: 224 47% 12%;
+    --muted-foreground: 220 9% 60%;
+
+    --accent: 224 47% 12%;
+    --accent-foreground: 220 14% 96%;
+
+    --destructive: 0 62% 30%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 224 47% 15%;
+    --input: 224 47% 15%;
+    --ring: 217 91% 60%;
+
+    --user-bubble: 217 91% 50%;
+    --user-bubble-foreground: 0 0% 100%;
+    
+    --assistant-bubble: 224 47% 10%;
+    --assistant-bubble-foreground: 220 14% 96%;
+    --assistant-bubble-border: 224 47% 15%;
+    
+    --citation: 217 91% 15%;
+    --citation-foreground: 217 91% 70%;
+    --citation-hover: 217 91% 20%;
+
+    --sidebar-background: 224 47% 6%;
+    --sidebar-foreground: 220 14% 96%;
+    --sidebar-border: 224 47% 12%;
+    --sidebar-hover: 224 47% 10%;
+    --sidebar-active: 217 91% 10%;
+    --sidebar-active-border: 217 91% 60%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+}
+
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--muted-foreground) / 0.3) transparent;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--muted-foreground) / 0.3);
+    border-radius: 3px;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background-color: hsl(var(--muted-foreground) / 0.5);
+  }
+}
+
+@layer components {
+  .typing-dot {
+    @apply w-2 h-2 rounded-full bg-muted-foreground;
+    animation: typing-bounce 1.4s infinite ease-in-out both;
+  }
+  
+  .typing-dot:nth-child(1) {
+    animation-delay: -0.32s;
+  }
+  
+  .typing-dot:nth-child(2) {
+    animation-delay: -0.16s;
+  }
+  
+  .typing-dot:nth-child(3) {
+    animation-delay: 0s;
+  }
+}
+
+@keyframes typing-bounce {
+  0%, 80%, 100% {
+    transform: scale(0.8);
+    opacity: 0.5;
+  }
+  40% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-in-right {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}

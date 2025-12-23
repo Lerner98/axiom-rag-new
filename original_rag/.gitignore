@@ -1,0 +1,105 @@
+# === Environment & Secrets ===
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+secrets/
+
+# === Python ===
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.mypy_cache/
+
+# === Virtual Environments ===
+venv/
+ENV/
+env/
+.venv/
+
+# === Node.js ===
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# === Data & Database (CRITICAL - contains user data) ===
+backend/data/
+data/
+*.db
+*.sqlite
+*.sqlite3
+
+# === Build Outputs ===
+frontend/dist/
+*.pyc
+
+# === IDE & AI Tools ===
+.idea/
+.vscode/
+.claude/
+CLAUDE.md
+*.swp
+*.swo
+*~
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# === Project Documentation (local only) ===
+# ADRs and internal docs - not committed
+docs/adrs/
+state/
+archive/
+FUTURE_TODO.md
+RAG_ARCHITECTURE_COMPLETE_GUIDE.md
+RAG_EMBEDDING_MIGRATION_GUIDE.md
+FRONTEND_UI_FIXES.md
+POST_MORTEM_RECURSION_BUG.md
+RAG_FIXES_STEP_BY_STEP.md
+READNEEDED.md
+ToDo.md
+
+# === OS ===
+.DS_Store
+Thumbs.db
+
+# === Logs ===
+*.log
+logs/
+
+# === Docker ===
+docker-compose.override.yml
+
+# === Misc ===
+*.local
+
+# === Local files (not for repo) ===
+*.pdf
+backup_chroma_*/
+nul
+IF_Merge_V4.md
