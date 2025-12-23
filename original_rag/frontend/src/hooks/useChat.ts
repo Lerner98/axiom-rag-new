@@ -16,7 +16,6 @@ import type { SSEStreamingPhase } from '@/types';
 
 export function useChat() {
   const {
-    sessionId,
     chats,
     currentChatId,
     isStreaming,
@@ -53,7 +52,8 @@ export function useChat() {
 
       try {
         // ADR-007: Pass chatId for scoped endpoint (not collectionName)
-        await streamChat(content, sessionId, currentChatId || undefined, {
+        // CRITICAL: Use chatId as sessionId for memory isolation - each chat must be airgapped
+        await streamChat(content, currentChatId!, currentChatId || undefined, {
           // V6 TRUE STREAMING: Handle real-time phase updates
           onPhase: (phase: SSEStreamingPhase) => {
             // Map backend phases to frontend phases
@@ -85,9 +85,8 @@ export function useChat() {
       }
     },
     [
-      sessionId,
       isStreaming,
-      currentChatId,  // ADR-007: Using chatId for scoped endpoint
+      currentChatId,  // ADR-007: Using chatId for scoped endpoint AND as sessionId for memory isolation
       addUserMessage,
       startStreaming,
       setStreamingPhase,  // V6: Added for phase updates
@@ -105,7 +104,6 @@ export function useChat() {
     currentStreamingMessage,
     currentSources,
     error,
-    sessionId,
     collectionName,
 
     // Actions
