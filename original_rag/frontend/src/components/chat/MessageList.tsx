@@ -1,8 +1,81 @@
 import { useEffect, useRef, useState } from 'react';
-import { MessageSquare, ArrowDown, Upload, FileText } from 'lucide-react';
+import { MessageSquare, ArrowDown, Upload, FileText, Search, BookOpen, Sparkles, Loader2, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { MessageBubble } from './MessageBubble';
-import { useChatStore, Message } from '@/stores/chatStore';
+import { useChatStore, Message, StreamingPhase } from '@/stores/chatStore';
+import { cn } from '@/lib/utils';
+
+// Progress indicator component for streaming phases
+function StreamingProgress({ phase, sourceCount }: { phase: StreamingPhase; sourceCount: number }) {
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+
+  // Timer to show elapsed time during long operations
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setElapsedSeconds(s => s + 1);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const phases = [
+    { key: 'searching', label: 'Searching documents...', icon: Search },
+    { key: 'found_sources', label: `Found ${sourceCount} document${sourceCount !== 1 ? 's' : ''}`, icon: BookOpen },
+    { key: 'generating', label: 'Generating response...', icon: Sparkles },
+  ];
+
+  // Treat 'idle' as 'searching' for display purposes (streaming just started)
+  const displayPhase = phase === 'idle' ? 'searching' : phase;
+  const currentIndex = phases.findIndex(p => p.key === displayPhase);
+
+  return (
+    <div className="flex justify-start animate-fade-in">
+      <div className="max-w-[70%] rounded-2xl rounded-bl-md bg-assistant-bubble border border-assistant-bubble-border px-4 py-3">
+        <div className="flex flex-col gap-2">
+          {phases.map((p, index) => {
+            const Icon = p.icon;
+            const isActive = p.key === displayPhase;
+            const isComplete = index < currentIndex;
+            const isPending = index > currentIndex;
+
+            return (
+              <div
+                key={p.key}
+                className={cn(
+                  'flex items-center gap-2 text-sm transition-all duration-300',
+                  isActive && 'text-primary font-medium',
+                  isComplete && 'text-green-600 dark:text-green-400',
+                  isPending && 'text-muted-foreground/50'
+                )}
+              >
+                <div className={cn(
+                  'w-5 h-5 rounded-full flex items-center justify-center transition-all',
+                  isActive && 'bg-primary/10',
+                  isComplete && 'bg-green-500/10'
+                )}>
+                  {isComplete ? (
+                    <Check className="w-3 h-3 text-green-500" />
+                  ) : isActive ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : (
+                    <div className="w-2 h-2 rounded-full bg-muted-foreground/30" />
+                  )}
+                </div>
+                <span>{p.label}</span>
+              </div>
+            );
+          })}
+        </div>
+        {/* Show elapsed time after 3 seconds to indicate activity */}
+        {elapsedSeconds >= 3 && (
+          <div className="mt-2 pt-2 border-t border-assistant-bubble-border/30 text-xs text-muted-foreground flex items-center gap-1.5">
+            <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+            <span>Processing... {elapsedSeconds}s</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export function MessageList() {
   const {
@@ -10,6 +83,7 @@ export function MessageList() {
     currentChatId,
     setDocumentPanelOpen,
     isStreaming,
+    streamingPhase,
     currentStreamingMessage,
     currentSources,
     error,
@@ -113,17 +187,13 @@ export function MessageList() {
           {messages.map((message) => (
             <MessageBubble key={message.id} message={message} />
           ))}
-          {/* Show streaming message */}
+          {/* Show streaming message when content is being generated */}
           {streamingMessage && (
             <MessageBubble key="streaming" message={streamingMessage} />
           )}
-          {/* Show loading indicator when streaming starts but no content yet */}
+          {/* Show progress phases when streaming but no content yet */}
           {isStreaming && !currentStreamingMessage && (
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <div className="w-2 h-2 bg-primary rounded-full animate-bounce" />
-              <div className="w-2 h-2 bg-primary rounded-full animate-bounce delay-75" />
-              <div className="w-2 h-2 bg-primary rounded-full animate-bounce delay-150" />
-            </div>
+            <StreamingProgress phase={streamingPhase} sourceCount={currentSources.length} />
           )}
           {/* Show error if any */}
           {error && (

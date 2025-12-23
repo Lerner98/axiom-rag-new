@@ -25,6 +25,7 @@ from rag.prompts import (
     HALLUCINATION_CHECK_PROMPT,
     format_sources_for_prompt,
 )
+from rag.utils import extract_relevant_snippet
 from config.settings import settings
 
 logger = logging.getLogger(__name__)
@@ -148,7 +149,25 @@ class RAGNodes:
             logger.warning("IntentRouter unavailable, defaulting to 'question'")
             intent = "question"
             confidence = 0.5
-        
+
+        # FIX: Conversation-dependent intents (followup, simplify, deepen) need prior context.
+        # If no chat history exists, these should fall back to "question" to trigger RAG.
+        conversation_intents = {"followup", "simplify", "deepen"}
+        if intent in conversation_intents:
+            # Check if there's any conversation history for this session
+            has_history = False
+            if self.memory and state.get("session_id"):
+                try:
+                    history = await self.memory.get_history(state["session_id"], limit=1)
+                    has_history = len(history) > 0
+                except Exception as e:
+                    logger.debug(f"Could not check history: {e}")
+
+            if not has_history:
+                logger.info(f"Intent '{intent}' has no conversation history - falling back to 'question'")
+                intent = "question"
+                confidence = 1.0  # High confidence since this is a deliberate override
+
         logger.info(f"Intent classified as: {intent} (confidence={confidence:.2f})")
         
         return {
@@ -487,7 +506,7 @@ class RAGNodes:
         Flow:
         1. Context filter: Remove docs irrelevant to current query (prevents context bleed)
         2. Reranker: Score and rank remaining docs
-        3. Return top final_k (5) to LLM
+        3. Return top K to LLM (ADAPTIVE: K=2 for simple, K=5 for complex)
         """
         logger.info(f"Grading {len(state['retrieved_documents'])} documents")
 
@@ -500,7 +519,16 @@ class RAGNodes:
             }
 
         query = state.get("rewritten_query") or state["question"]
-        final_k = settings.retrieval_final_k  # 5
+
+        # ADAPTIVE K: Simple queries need fewer docs (faster prefill)
+        # Simple: K=2 (~1200 tokens), Complex: K=5 (~3000 tokens)
+        query_complexity = state.get("query_complexity", "complex")
+        if query_complexity == "simple":
+            final_k = 2
+            logger.info("Adaptive K: Using K=2 for simple query (faster prefill)")
+        else:
+            final_k = settings.retrieval_final_k  # 5
+            logger.info(f"Adaptive K: Using K={final_k} for {query_complexity} query")
 
         # Step 1: Context filter to prevent context bleed
         docs_to_grade = state["retrieved_documents"]
@@ -535,31 +563,39 @@ class RAGNodes:
                 
                 # Build relevant documents from reranked results
                 relevant_documents = []
-                sources = []
-                
+                sources_by_file = {}  # Dedupe by filename - show DOCUMENTS not chunks
+
                 for orig_idx, score in reranked:
                     doc = docs_to_grade[orig_idx]
-                    
+
                     # Update relevance score with reranker score
                     doc_with_score = {
                         **doc,
                         "relevance_score": float(score) * 100,  # Convert to percentage
                     }
                     relevant_documents.append(doc_with_score)
-                    
-                    # Build source info
-                    sources.append({
-                        "source": doc["metadata"].get("source", "unknown"),
-                        "filename": doc["metadata"].get("source", "unknown"),
-                        "page": doc["metadata"].get("page"),
-                        "chunk_id": doc["metadata"].get("chunk_id", ""),
-                        "relevance_score": float(score) * 100,
-                        "content_preview": doc["content"][:300],
-                        "page_content": doc["content"],
-                    })
-                
-                logger.info(f"Reranker returned {len(relevant_documents)} relevant documents")
-                
+
+                    # Group by document filename - keep highest scoring chunk's info
+                    filename = doc["metadata"].get("source", "unknown")
+                    score_pct = float(score) * 100
+
+                    if filename not in sources_by_file or score_pct > sources_by_file[filename]["relevance_score"]:
+                        sources_by_file[filename] = {
+                            "source": filename,
+                            "filename": filename,
+                            "page": doc["metadata"].get("page"),
+                            "chunk_id": doc["metadata"].get("chunk_id", ""),
+                            "relevance_score": score_pct,
+                            "content_preview": extract_relevant_snippet(
+                                query,
+                                doc["content"],
+                                parent_context=doc["metadata"].get("parent_context"),
+                            ),
+                        }
+
+                sources = list(sources_by_file.values())
+                logger.info(f"Reranker: {len(relevant_documents)} chunks from {len(sources)} unique documents")
+
                 return {
                     "relevant_documents": relevant_documents,
                     "sources": sources,
@@ -573,7 +609,7 @@ class RAGNodes:
         threshold = settings.relevance_threshold * 100  # Convert to percentage
 
         relevant_documents = []
-        sources = []
+        sources_by_file = {}  # Dedupe by filename - show DOCUMENTS not chunks
 
         # Sort by score and take top final_k
         sorted_docs = sorted(
@@ -581,24 +617,32 @@ class RAGNodes:
             key=lambda x: x.get("relevance_score", 0),
             reverse=True
         )[:final_k]
-        
+
         for doc in sorted_docs:
             score = doc.get("relevance_score", 0)
-            
+
             # Include if above threshold OR if we have no relevant docs yet
             if score >= threshold or not relevant_documents:
                 relevant_documents.append(doc)
-                sources.append({
-                    "source": doc["metadata"].get("source", "unknown"),
-                    "filename": doc["metadata"].get("source", "unknown"),
-                    "page": doc["metadata"].get("page"),
-                    "chunk_id": doc["metadata"].get("chunk_id", ""),
-                    "relevance_score": score,
-                    "content_preview": doc["content"][:300],
-                    "page_content": doc["content"],
-                })
-        
-        logger.info(f"Threshold filter returned {len(relevant_documents)} relevant documents")
+
+                # Group by document filename - keep highest scoring chunk's info
+                filename = doc["metadata"].get("source", "unknown")
+                if filename not in sources_by_file or score > sources_by_file[filename]["relevance_score"]:
+                    sources_by_file[filename] = {
+                        "source": filename,
+                        "filename": filename,
+                        "page": doc["metadata"].get("page"),
+                        "chunk_id": doc["metadata"].get("chunk_id", ""),
+                        "relevance_score": score,
+                        "content_preview": extract_relevant_snippet(
+                            query,
+                            doc["content"],
+                            parent_context=doc["metadata"].get("parent_context"),
+                        ),
+                    }
+
+        sources = list(sources_by_file.values())
+        logger.info(f"Threshold: {len(relevant_documents)} chunks from {len(sources)} unique documents")
 
         return {
             "relevant_documents": relevant_documents,
@@ -613,8 +657,10 @@ class RAGNodes:
     async def generate(self, state: RAGState) -> dict:
         """Generate answer from relevant documents."""
         logger.info(f"Generating answer (iteration {state['iteration']})")
-        
-        # Build context from relevant documents
+
+        # Build context from relevant documents (LLMLingua DISABLED for benchmarking)
+        # LLMLingua was adding ~14s overhead for small context sizes (~810 tokens)
+        # Re-enable if context exceeds 2000+ tokens where compression benefits outweigh overhead
         if state.get("relevant_documents"):
             context_parts = []
             for i, doc in enumerate(state["relevant_documents"], 1):
@@ -625,13 +671,13 @@ class RAGNodes:
             context = "\n\n---\n\n".join(context_parts)
         else:
             context = "No relevant documents found in the knowledge base."
-        
+
         # Get chat history
         chat_history = ""
         if self.memory:
             history = await self.memory.get_history(state["session_id"], limit=5)
             chat_history = "\n".join([f"{m['role']}: {m['content']}" for m in history])
-        
+
         # Choose prompt based on iteration
         # On retry, use stricter prompt (but don't mention "improving" to avoid LLM echoing that)
         if state["iteration"] > 0:
@@ -645,10 +691,10 @@ class RAGNodes:
                 question=state["question"],
                 chat_history=chat_history or "No previous conversation",
             )
-        
+
         response = await self.llm.ainvoke(prompt)
         answer = response.content.strip()
-        
+
         return {
             "answer": answer,
             "processing_steps": ["generate"],
@@ -728,9 +774,12 @@ class RAGNodes:
     async def check_hallucination(self, state: RAGState) -> dict:
         """
         Hybrid hallucination check: fast deterministic first, LLM if ambiguous.
+
+        OPTIMIZATION: For simple queries with high retrieval scores, skip entirely.
+        This saves ~3-5s on simple factual queries where hallucination is unlikely.
         """
         logger.info("Checking for hallucinations (hybrid)")
-        
+
         if not state.get("relevant_documents"):
             logger.info("Skipping hallucination check - no documents")
             return {
@@ -742,12 +791,32 @@ class RAGNodes:
                 "iteration": state["iteration"] + 1,
                 "processing_steps": ["hallucination_skip"],
             }
-        
+
+        # OPTIMIZATION: Skip hallucination check for simple queries with high-confidence retrieval
+        # Simple queries with top doc score >= 70% are unlikely to hallucinate
+        query_complexity = state.get("query_complexity", "complex")
+        if query_complexity == "simple":
+            top_score = max(
+                (d.get("relevance_score", 0) for d in state["relevant_documents"]),
+                default=0
+            )
+            if top_score >= 70:  # 70% retrieval confidence
+                logger.info(f"FAST PATH: Skipping hallucination check (simple + high retrieval score={top_score:.1f}%)")
+                return {
+                    "is_grounded": True,
+                    "groundedness_score": top_score / 100,
+                    "fast_groundedness_score": top_score / 100,
+                    "skip_llm_hallucination_check": True,
+                    "hallucination_details": None,
+                    "iteration": state["iteration"] + 1,
+                    "processing_steps": ["hallucination_skip_simple_highconf"],
+                }
+
         sources_for_check = [
             {"content": d["content"], "metadata": d["metadata"]}
             for d in state["relevant_documents"]
         ]
-        
+
         # Fast check first
         fast_score = self._fast_groundedness_check(state["answer"], sources_for_check)
         

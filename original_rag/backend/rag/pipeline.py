@@ -1,5 +1,5 @@
 """
-RAG Pipeline - V5 with Intent Classification + Context-Aware Handlers
+RAG Pipeline - V6 with TRUE STREAMING
 
 Flow:
 classify_intent → [needs_rag?]
@@ -8,19 +8,38 @@ classify_intent → [needs_rag?]
                        → [SIMPLE?] → retrieve (skip rewrite)
                        → [COMPLEX?] → rewrite_query → retrieve
 
+V6 STREAMING ARCHITECTURE:
+- Phase events emitted in real-time: searching → found_sources → generating → done
+- Sources emitted BEFORE generation starts (user sees what docs were found)
+- TRUE LLM streaming: tokens yielded as they're generated
+- Seamless UX with progressive feedback
+
+Changes from V5:
+- TRUE STREAMING: Tokens are yielded as LLM generates them
+- Phase events: searching → found_sources → generating → done
+- Sources are emitted BEFORE generation (not after)
+- Real-time feedback for seamless UX
+
 Changes from V4:
 - Added classify_intent as new entry point
 - Added handle_non_rag_intent for non-RAG intents
 - Context-aware handlers: followup, simplify, deepen use conversation memory
 - Intent router: 3-layer hybrid (hard rules → semantic → LLM)
 """
-from typing import AsyncGenerator
+from typing import AsyncGenerator, Optional, List, Dict, Any
 import logging
+import asyncio
 
 from langgraph.graph import StateGraph, END
 
 from rag.state import RAGState, create_initial_state
 from rag.nodes import RAGNodes, needs_rag, should_rewrite, has_relevant_docs, should_retry
+from rag.prompts import (
+    GENERATION_PROMPT,
+    GENERATION_WITH_RETRY_PROMPT,
+    HALLUCINATION_CHECK_PROMPT,
+    format_sources_for_prompt,
+)
 from config.settings import settings
 from memory import memory_store
 
@@ -63,10 +82,16 @@ class RAGPipeline:
             )
         elif settings.llm_provider == "ollama":
             from langchain_community.chat_models import ChatOllama
+            # Performance-tuned Ollama configuration
             return ChatOllama(
                 model=settings.ollama_model,
                 base_url=settings.ollama_base_url,
-                temperature=0
+                temperature=0,
+                # KV cache settings for faster prefill
+                num_ctx=settings.ollama_num_ctx,
+                # Additional model parameters passed to Ollama
+                # Note: kv_cache_type and flash_attention are set via OLLAMA_* env vars
+                # at the Ollama server level, not per-request
             )
         elif settings.llm_provider == "gemini":
             from langchain_google_genai import ChatGoogleGenerativeAI
@@ -235,35 +260,173 @@ class RAGPipeline:
         session_id: str = "default",
         collection_name: str | None = None
     ) -> AsyncGenerator[dict, None]:
-        """Stream a query through the RAG pipeline."""
+        """
+        TRUE STREAMING: Stream a query through the RAG pipeline with real-time events.
+
+        Event sequence:
+        1. {"type": "phase", "phase": "searching"} - Intent classification + retrieval starting
+        2. {"type": "sources", "sources": [...]} - Sources found (BEFORE generation)
+        3. {"type": "phase", "phase": "generating"} - LLM generation starting
+        4. {"type": "token", "content": "..."} - Each token as generated
+        5. {"type": "done", ...} - Stream complete with metadata
+        """
         collection = collection_name or settings.collection_name
-        
-        logger.info(f"Starting RAG stream: '{question[:50]}...' in collection '{collection}'")
-        
+
+        logger.info(f"Starting TRUE STREAMING: '{question[:50]}...' in collection '{collection}'")
+
+        # Phase 1: Signal searching
+        yield {"type": "phase", "phase": "searching"}
+
         initial_state = create_initial_state(
             question=question,
             session_id=session_id,
             collection_name=collection,
             max_iterations=settings.max_retries
         )
-        
-        final_state = await self.graph.ainvoke(initial_state)
-        
-        logger.info(f"RAG stream complete. Steps: {final_state['processing_steps']}")
-        
-        # Stream words
-        words = final_state["answer"].split()
-        for word in words:
-            yield {"type": "token", "content": word + " "}
-        
-        # Send sources
-        yield {"type": "sources", "sources": final_state["sources"]}
-        
-        # Send done
-        yield {
-            "type": "done",
-            "is_grounded": final_state["is_grounded"],
-            "iterations": final_state["iteration"],
-            "query_complexity": final_state.get("query_complexity"),
-            "is_summarization": final_state.get("is_summarization", False),
-        }
+
+        # Run pipeline up to generation (classify → route → retrieve → grade)
+        # We need to intercept BEFORE generate to emit sources and stream tokens
+
+        try:
+            # Step 1: Intent classification
+            state = dict(initial_state)
+            intent_result = await self.nodes.classify_intent(state)
+            state.update(intent_result)
+
+            intent = state.get("detected_intent", "question")
+
+            # Check if we need RAG at all
+            if needs_rag(state) == "no_rag":
+                # Handle non-RAG intent (greeting, etc.)
+                logger.info(f"Non-RAG intent: {intent}")
+                result = await self.nodes.handle_non_rag_intent(state)
+                state.update(result)
+
+                # Emit sources (empty for non-RAG)
+                yield {"type": "sources", "sources": []}
+                yield {"type": "phase", "phase": "generating"}
+
+                # Stream the pre-built answer
+                answer = state.get("answer", "")
+                for word in answer.split():
+                    yield {"type": "token", "content": word + " "}
+                    await asyncio.sleep(0.01)  # Small delay for visual effect
+
+                yield {
+                    "type": "done",
+                    "is_grounded": True,
+                    "iterations": 0,
+                    "query_complexity": None,
+                    "detected_intent": intent,
+                }
+                return
+
+            # Step 2: Route query (fast heuristic)
+            route_result = await self.nodes.route_query(state)
+            state.update(route_result)
+
+            # Step 3: Retrieval
+            if state.get("query_complexity") == "garbage":
+                # Handle garbage query
+                result = await self.nodes.handle_garbage_query(state)
+                state.update(result)
+                yield {"type": "sources", "sources": []}
+                yield {"type": "phase", "phase": "generating"}
+                for word in state.get("answer", "").split():
+                    yield {"type": "token", "content": word + " "}
+                yield {"type": "done", "is_grounded": True, "iterations": 0}
+                return
+
+            # Run appropriate retrieval
+            if state.get("is_summarization"):
+                retrieve_result = await self.nodes.retrieve_sequential(state)
+            else:
+                if not state.get("skip_rewrite"):
+                    rewrite_result = await self.nodes.rewrite_query(state)
+                    state.update(rewrite_result)
+                retrieve_result = await self.nodes.retrieve(state)
+
+            state.update(retrieve_result)
+
+            # Step 4: Grade documents
+            grade_result = await self.nodes.grade_documents(state)
+            state.update(grade_result)
+
+            # EMIT SOURCES - User sees what was found BEFORE generation
+            sources = state.get("sources", [])
+            yield {"type": "sources", "sources": sources}
+            logger.info(f"Emitted {len(sources)} sources to frontend")
+
+            # Phase 3: Generation with TRUE streaming
+            yield {"type": "phase", "phase": "generating"}
+
+            # Build context for generation
+            context = self._build_context(state.get("relevant_documents", []))
+            chat_history = await self._get_chat_history(session_id)
+
+            # Build prompt
+            prompt = GENERATION_PROMPT.format(
+                context=context,
+                question=question,
+                chat_history=chat_history or "No previous conversation",
+            )
+
+            # TRUE LLM STREAMING - yield tokens as they're generated
+            full_answer = ""
+            async for chunk in self.llm.astream(prompt):
+                token = chunk.content if hasattr(chunk, 'content') else str(chunk)
+                if token:
+                    full_answer += token
+                    yield {"type": "token", "content": token}
+
+            state["answer"] = full_answer
+            logger.info(f"Streamed {len(full_answer)} chars of answer")
+
+            # Step 5: Hallucination check (non-blocking, doesn't affect stream)
+            hallucination_result = await self.nodes.check_hallucination(state)
+            state.update(hallucination_result)
+
+            # Step 6: Save to memory
+            await self.nodes.save_to_memory(state)
+
+            # Done event with metadata
+            yield {
+                "type": "done",
+                "is_grounded": state.get("is_grounded", True),
+                "iterations": state.get("iteration", 0),
+                "query_complexity": state.get("query_complexity"),
+                "is_summarization": state.get("is_summarization", False),
+                "detected_intent": state.get("detected_intent"),
+            }
+
+            logger.info(f"TRUE STREAMING complete. Grounded: {state.get('is_grounded')}")
+
+        except Exception as e:
+            logger.error(f"Streaming error: {e}", exc_info=True)
+            yield {"type": "error", "message": str(e)}
+
+    def _build_context(self, relevant_documents: List[Dict]) -> str:
+        """Build context string from relevant documents."""
+        if not relevant_documents:
+            return "No relevant documents found in the knowledge base."
+
+        context_parts = []
+        for i, doc in enumerate(relevant_documents, 1):
+            source = doc.get("metadata", {}).get("source", "unknown")
+            page = doc.get("metadata", {}).get("page", "")
+            page_str = f" (page {page})" if page else ""
+            content = doc.get("content", "")
+            context_parts.append(f"[Source {i}: {source}{page_str}]\n{content}")
+
+        return "\n\n---\n\n".join(context_parts)
+
+    async def _get_chat_history(self, session_id: str) -> str:
+        """Get formatted chat history."""
+        if not self.memory:
+            return ""
+        try:
+            history = await self.memory.get_history(session_id, limit=5)
+            return "\n".join([f"{m['role']}: {m['content']}" for m in history])
+        except Exception as e:
+            logger.warning(f"Could not get chat history: {e}")
+            return ""

@@ -19,7 +19,13 @@ export interface Message {
   sources?: Source[];
   timestamp: Date;
   isStreaming?: boolean;
+  // Response metadata
+  wasGrounded?: boolean;       // Whether response was grounded in retrieved sources
+  processingTimeMs?: number;   // Total processing time in milliseconds
 }
+
+// Streaming phases for progress indication
+export type StreamingPhase = 'idle' | 'searching' | 'found_sources' | 'generating' | 'complete';
 
 // ADR-007: Document belongs to a chat, not to a global collection
 export interface Document {
@@ -59,16 +65,19 @@ interface ChatStore {
 
   // Streaming state
   isStreaming: boolean;
+  streamingPhase: StreamingPhase;
   currentStreamingMessage: string;
   currentSources: Source[];
   error: string | null;
+  streamingStartTime: number | null;
 
   // Streaming actions
   addUserMessage: (content: string) => void;
   startStreaming: () => void;
+  setStreamingPhase: (phase: StreamingPhase) => void;
   appendStreamToken: (token: string) => void;
   setSources: (sources: Source[]) => void;
-  finishStreaming: (wasGrounded?: boolean) => void;
+  finishStreaming: (wasGrounded?: boolean, processingTimeMs?: number) => void;
   setError: (error: string | null) => void;
   clearMessages: () => void;
 
@@ -110,9 +119,11 @@ export const useChatStore = create<ChatStore>()(
           chats: [],
           currentChatId: null,
           isStreaming: false,
+          streamingPhase: 'idle' as StreamingPhase,
           currentStreamingMessage: '',
           currentSources: [],
           error: null,
+          streamingStartTime: null,
         }),
 
       // Sidebar
@@ -125,9 +136,11 @@ export const useChatStore = create<ChatStore>()(
 
       // Streaming state
       isStreaming: false,
+      streamingPhase: 'idle' as StreamingPhase,
       currentStreamingMessage: '',
       currentSources: [],
       error: null,
+      streamingStartTime: null,
 
       // Streaming actions
       addUserMessage: (content) => {
@@ -188,24 +201,43 @@ export const useChatStore = create<ChatStore>()(
       startStreaming: () => {
         set({
           isStreaming: true,
+          streamingPhase: 'searching' as StreamingPhase,
           currentStreamingMessage: '',
           currentSources: [],
           error: null,
+          streamingStartTime: Date.now(),
         });
+      },
+
+      setStreamingPhase: (phase) => {
+        set({ streamingPhase: phase });
       },
 
       appendStreamToken: (token) => {
         set((state) => ({
           currentStreamingMessage: state.currentStreamingMessage + token,
+          // Only switch to generating if we've passed found_sources
+          // This preserves the found_sources phase long enough to be visible
+          streamingPhase: (state.streamingPhase === 'found_sources' || state.streamingPhase === 'generating')
+            ? 'generating' as StreamingPhase
+            : state.streamingPhase,
         }));
       },
 
       setSources: (sources) => {
-        set({ currentSources: sources });
+        // Each chunk shown separately - lets users see exactly which
+        // parts of documents the answer came from (with page/relevance)
+        set({
+          currentSources: sources,
+          streamingPhase: 'found_sources' as StreamingPhase,
+        });
       },
 
-      finishStreaming: (_wasGrounded) => {
-        const { currentStreamingMessage, currentSources, currentChatId } = get();
+      finishStreaming: (wasGrounded, processingTimeMs) => {
+        const { currentStreamingMessage, currentSources, currentChatId, streamingStartTime } = get();
+
+        // Calculate processing time if not provided
+        const finalProcessingTime = processingTimeMs ?? (streamingStartTime ? Date.now() - streamingStartTime : undefined);
 
         if (currentChatId && currentStreamingMessage) {
           set((state) => ({
@@ -221,6 +253,8 @@ export const useChatStore = create<ChatStore>()(
                         content: currentStreamingMessage,
                         sources: currentSources,
                         timestamp: new Date(),
+                        wasGrounded,
+                        processingTimeMs: finalProcessingTime,
                       },
                     ],
                     updatedAt: new Date(),
@@ -228,14 +262,18 @@ export const useChatStore = create<ChatStore>()(
                 : chat
             ),
             isStreaming: false,
+            streamingPhase: 'idle' as StreamingPhase,
             currentStreamingMessage: '',
             currentSources: [],
+            streamingStartTime: null,
           }));
         } else {
           set({
             isStreaming: false,
+            streamingPhase: 'idle' as StreamingPhase,
             currentStreamingMessage: '',
             currentSources: [],
+            streamingStartTime: null,
           });
         }
       },
@@ -244,7 +282,9 @@ export const useChatStore = create<ChatStore>()(
         set({
           error,
           isStreaming: false,
+          streamingPhase: 'idle' as StreamingPhase,
           currentStreamingMessage: '',
+          streamingStartTime: null,
         });
       },
 

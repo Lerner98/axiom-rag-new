@@ -66,8 +66,15 @@ async def generate_stream(
     chat_id: str | None = None  # NEW: chat_id for chat-scoped collections
 ) -> AsyncGenerator[str, None]:
     """
-    Generate streaming response.
+    Generate TRUE streaming response with real-time phase events.
     Yields SSE-formatted events.
+
+    Event sequence (V6 TRUE STREAMING):
+    1. phase: "searching" - Pipeline starting, intent classification + retrieval
+    2. sources: [...] - Retrieved documents (BEFORE generation starts)
+    3. phase: "generating" - LLM generation starting
+    4. token: "..." - Each token as it's generated (TRUE streaming)
+    5. done: {...} - Stream complete with metadata
 
     If chat_id is provided, uses chat-scoped collection (chat_{chat_id}).
     Otherwise falls back to collection_name for backward compatibility.
@@ -78,15 +85,27 @@ async def generate_stream(
     # Determine collection: chat-scoped takes priority
     effective_collection = get_chat_collection_name(chat_id) if chat_id else collection_name
 
+    logger.info(f"Starting TRUE STREAMING for message in collection: {effective_collection}")
+
     try:
         pipeline = get_pipeline()
 
-        # Stream through the pipeline
+        # Stream through the pipeline with TRUE real-time events
         async for chunk in pipeline.astream(message, session_id, effective_collection):
-            if chunk["type"] == "token":
+            event_type = chunk.get("type")
+
+            if event_type == "phase":
+                # Phase change event - for frontend progress indicator
+                phase = chunk.get("phase", "searching")
+                yield json.dumps({'type': 'phase', 'phase': phase})
+                logger.debug(f"SSE phase: {phase}")
+
+            elif event_type == "token":
+                # TRUE streaming token - yield immediately
                 yield json.dumps({'type': 'token', 'content': chunk['content']})
 
-            elif chunk["type"] == "sources":
+            elif event_type == "sources":
+                # Sources found - emitted BEFORE generation starts
                 sources = []
                 for s in chunk.get("sources", []):
                     if isinstance(s, dict):
@@ -98,8 +117,10 @@ async def generate_stream(
                             "page": s.get("page"),
                         })
                 yield json.dumps({'type': 'sources', 'sources': sources})
+                logger.info(f"SSE sources: {len(sources)} documents")
 
-            elif chunk["type"] == "done":
+            elif event_type == "done":
+                # Stream complete
                 processing_time = int((datetime.utcnow() - start_time).total_seconds() * 1000)
                 done = StreamDone(
                     message_id=message_id,
@@ -107,9 +128,16 @@ async def generate_stream(
                     processing_time_ms=processing_time
                 )
                 yield json.dumps(done.model_dump())
+                logger.info(f"SSE done: {processing_time}ms, grounded={chunk.get('is_grounded')}")
+
+            elif event_type == "error":
+                # Error during streaming
+                error = StreamError(message=chunk.get("message", "Unknown error"), code="STREAM_ERROR")
+                yield json.dumps(error.model_dump())
+                logger.error(f"SSE error: {chunk.get('message')}")
 
     except Exception as e:
-        logger.error(f"Stream error: {e}")
+        logger.error(f"Stream error: {e}", exc_info=True)
         error = StreamError(message=str(e), code="STREAM_ERROR")
         yield json.dumps(error.model_dump())
 

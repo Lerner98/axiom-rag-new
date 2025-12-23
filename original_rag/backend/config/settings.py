@@ -35,7 +35,15 @@ class Settings(BaseSettings):
     
     # Ollama
     ollama_base_url: str = Field(default="http://localhost:11434", env="OLLAMA_BASE_URL")
-    ollama_model: str = Field(default="llama3", env="OLLAMA_MODEL")
+    ollama_model: str = Field(default="llama3.1:8b", env="OLLAMA_MODEL")
+
+    # Ollama Performance Tuning
+    # KV cache quantization: "f16" (default), "q8_0" (faster, less memory), "q4_0" (fastest)
+    ollama_kv_cache_type: str = Field(default="q8_0", env="OLLAMA_KV_CACHE_TYPE")
+    # Number of context tokens to keep in cache
+    ollama_num_ctx: int = Field(default=4096, env="OLLAMA_NUM_CTX")
+    # Enable flash attention for better memory efficiency
+    ollama_flash_attention: bool = Field(default=True, env="OLLAMA_FLASH_ATTENTION")
     
     # Gemini
     google_api_key: str = Field(default="", env="GOOGLE_API_KEY")
