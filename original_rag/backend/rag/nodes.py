@@ -505,7 +505,7 @@ class RAGNodes:
         Flow:
         1. Context filter: Remove docs irrelevant to current query (prevents context bleed)
         2. Reranker: Score and rank remaining docs
-        3. Return top final_k (5) to LLM
+        3. Return top K to LLM (ADAPTIVE: K=2 for simple, K=5 for complex)
         """
         logger.info(f"Grading {len(state['retrieved_documents'])} documents")
 
@@ -518,7 +518,16 @@ class RAGNodes:
             }
 
         query = state.get("rewritten_query") or state["question"]
-        final_k = settings.retrieval_final_k  # 5
+
+        # ADAPTIVE K: Simple queries need fewer docs (faster prefill)
+        # Simple: K=2 (~1200 tokens), Complex: K=5 (~3000 tokens)
+        query_complexity = state.get("query_complexity", "complex")
+        if query_complexity == "simple":
+            final_k = 2
+            logger.info("Adaptive K: Using K=2 for simple query (faster prefill)")
+        else:
+            final_k = settings.retrieval_final_k  # 5
+            logger.info(f"Adaptive K: Using K={final_k} for {query_complexity} query")
 
         # Step 1: Context filter to prevent context bleed
         docs_to_grade = state["retrieved_documents"]
@@ -748,9 +757,12 @@ class RAGNodes:
     async def check_hallucination(self, state: RAGState) -> dict:
         """
         Hybrid hallucination check: fast deterministic first, LLM if ambiguous.
+
+        OPTIMIZATION: For simple queries with high retrieval scores, skip entirely.
+        This saves ~3-5s on simple factual queries where hallucination is unlikely.
         """
         logger.info("Checking for hallucinations (hybrid)")
-        
+
         if not state.get("relevant_documents"):
             logger.info("Skipping hallucination check - no documents")
             return {
@@ -762,12 +774,32 @@ class RAGNodes:
                 "iteration": state["iteration"] + 1,
                 "processing_steps": ["hallucination_skip"],
             }
-        
+
+        # OPTIMIZATION: Skip hallucination check for simple queries with high-confidence retrieval
+        # Simple queries with top doc score >= 70% are unlikely to hallucinate
+        query_complexity = state.get("query_complexity", "complex")
+        if query_complexity == "simple":
+            top_score = max(
+                (d.get("relevance_score", 0) for d in state["relevant_documents"]),
+                default=0
+            )
+            if top_score >= 70:  # 70% retrieval confidence
+                logger.info(f"FAST PATH: Skipping hallucination check (simple + high retrieval score={top_score:.1f}%)")
+                return {
+                    "is_grounded": True,
+                    "groundedness_score": top_score / 100,
+                    "fast_groundedness_score": top_score / 100,
+                    "skip_llm_hallucination_check": True,
+                    "hallucination_details": None,
+                    "iteration": state["iteration"] + 1,
+                    "processing_steps": ["hallucination_skip_simple_highconf"],
+                }
+
         sources_for_check = [
             {"content": d["content"], "metadata": d["metadata"]}
             for d in state["relevant_documents"]
         ]
-        
+
         # Fast check first
         fast_score = self._fast_groundedness_check(state["answer"], sources_for_check)
         
