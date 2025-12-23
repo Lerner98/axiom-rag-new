@@ -41,13 +41,24 @@ export interface ChatResponse {
   processing_time_ms: number;
 }
 
+// V6 TRUE STREAMING: Phase types for SSE events
+// Note: Full StreamingPhase type is in chatStore.ts (includes 'idle', 'found_sources', 'complete')
+// This is the subset sent over the wire from backend
+export type SSEStreamingPhase = 'searching' | 'generating';
+
 export interface StreamEvent {
-  type: 'token' | 'sources' | 'done' | 'error';
+  type: 'phase' | 'token' | 'sources' | 'done' | 'error';
+  // Phase event (V6)
+  phase?: SSEStreamingPhase;
+  // Token event
   content?: string;
+  // Sources event
   sources?: Source[];
+  // Done event
   message_id?: string;
   was_grounded?: boolean;
   processing_time_ms?: number;
+  // Error event
   message?: string;
   code?: string;
 }
