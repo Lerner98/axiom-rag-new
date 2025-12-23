@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     
     # Ollama
     ollama_base_url: str = Field(default="http://localhost:11434", env="OLLAMA_BASE_URL")
-    ollama_model: str = Field(default="llama3", env="OLLAMA_MODEL")
+    ollama_model: str = Field(default="llama3.1:8b", env="OLLAMA_MODEL")
 
     # Ollama Performance Tuning
     # KV cache quantization: "f16" (default), "q8_0" (faster, less memory), "q4_0" (fastest)

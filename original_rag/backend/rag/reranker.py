@@ -168,7 +168,7 @@ class OllamaReranker(BaseReranker):
     but works with any model.
     """
     
-    def __init__(self, model_name: str = "llama3.2", base_url: str = "http://localhost:11434"):
+    def __init__(self, model_name: str = "llama3.1:8b", base_url: str = "http://localhost:11434"):
         """
         Initialize Ollama reranker.
         
@@ -379,7 +379,7 @@ def create_reranker(
         )
     elif backend == "ollama":
         return OllamaReranker(
-            model_name=model_name or "llama3.2",
+            model_name=model_name or "llama3.1:8b",
             base_url=kwargs.get("base_url", "http://localhost:11434")
         )
     elif backend == "cohere":
