@@ -64,7 +64,7 @@ export function MessageInput() {
               'placeholder:text-muted-foreground',
               'focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
               'disabled:cursor-not-allowed disabled:opacity-50',
-              'min-h-[48px] max-h-[200px] overflow-y-auto scrollbar-thin'
+              'min-h-[48px] max-h-[200px] overflow-y-auto scrollbar-auto'
             )}
           />
           <Button
