@@ -14,7 +14,7 @@ const fs = require('fs');
 const path = require('path');
 
 const BASE_URL = 'http://localhost';
-const TEST_DOC_PATH = 'c:/Users/guyle/Desktop/Toon/agentic-rag/test-docs/system-design-primer.txt';
+const TEST_DOC_PATH = 'c:/Users/guyle/Desktop/Toon/original_rag/test-docs/system-design-primer.txt';
 
 // Single chat ID for document collection
 const CHAT_ID = `quality-test-${Date.now()}`;
@@ -367,7 +367,14 @@ async function main() {
   console.log('Waiting for indexing...');
   await new Promise(r => setTimeout(r, 3000));
 
-  // Step 2: Run tests - all queries use same CHAT_ID (same collection)
+  // Step 2: Warm-up query to load models (Ollama + LLMLingua)
+  // This eliminates the 60-120s first-query spike from benchmark stats
+  console.log('\n--- Warming up models (Ollama + LLMLingua) ---');
+  const warmupStart = Date.now();
+  await testQuery(port, 'Hello, this is a warm-up query.', CHAT_ID, 'warmup-session');
+  console.log(`Warm-up complete in ${Date.now() - warmupStart}ms`);
+
+  // Step 3: Run tests - all queries use same CHAT_ID (same collection)
   // but unique session IDs (isolated memory)
   console.log('\n--- Running quality tests ---');
   const results = await runTests(port, label, CHAT_ID);

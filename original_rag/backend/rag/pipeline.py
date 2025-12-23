@@ -63,10 +63,16 @@ class RAGPipeline:
             )
         elif settings.llm_provider == "ollama":
             from langchain_community.chat_models import ChatOllama
+            # Performance-tuned Ollama configuration
             return ChatOllama(
                 model=settings.ollama_model,
                 base_url=settings.ollama_base_url,
-                temperature=0
+                temperature=0,
+                # KV cache settings for faster prefill
+                num_ctx=settings.ollama_num_ctx,
+                # Additional model parameters passed to Ollama
+                # Note: kv_cache_type and flash_attention are set via OLLAMA_* env vars
+                # at the Ollama server level, not per-request
             )
         elif settings.llm_provider == "gemini":
             from langchain_google_genai import ChatGoogleGenerativeAI

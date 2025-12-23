@@ -148,7 +148,25 @@ class RAGNodes:
             logger.warning("IntentRouter unavailable, defaulting to 'question'")
             intent = "question"
             confidence = 0.5
-        
+
+        # FIX: Conversation-dependent intents (followup, simplify, deepen) need prior context.
+        # If no chat history exists, these should fall back to "question" to trigger RAG.
+        conversation_intents = {"followup", "simplify", "deepen"}
+        if intent in conversation_intents:
+            # Check if there's any conversation history for this session
+            has_history = False
+            if self.memory and state.get("session_id"):
+                try:
+                    history = await self.memory.get_history(state["session_id"], limit=1)
+                    has_history = len(history) > 0
+                except Exception as e:
+                    logger.debug(f"Could not check history: {e}")
+
+            if not has_history:
+                logger.info(f"Intent '{intent}' has no conversation history - falling back to 'question'")
+                intent = "question"
+                confidence = 1.0  # High confidence since this is a deliberate override
+
         logger.info(f"Intent classified as: {intent} (confidence={confidence:.2f})")
         
         return {
@@ -613,8 +631,10 @@ class RAGNodes:
     async def generate(self, state: RAGState) -> dict:
         """Generate answer from relevant documents."""
         logger.info(f"Generating answer (iteration {state['iteration']})")
-        
-        # Build context from relevant documents
+
+        # Build context from relevant documents (LLMLingua DISABLED for benchmarking)
+        # LLMLingua was adding ~14s overhead for small context sizes (~810 tokens)
+        # Re-enable if context exceeds 2000+ tokens where compression benefits outweigh overhead
         if state.get("relevant_documents"):
             context_parts = []
             for i, doc in enumerate(state["relevant_documents"], 1):
@@ -625,13 +645,13 @@ class RAGNodes:
             context = "\n\n---\n\n".join(context_parts)
         else:
             context = "No relevant documents found in the knowledge base."
-        
+
         # Get chat history
         chat_history = ""
         if self.memory:
             history = await self.memory.get_history(state["session_id"], limit=5)
             chat_history = "\n".join([f"{m['role']}: {m['content']}" for m in history])
-        
+
         # Choose prompt based on iteration
         # On retry, use stricter prompt (but don't mention "improving" to avoid LLM echoing that)
         if state["iteration"] > 0:
@@ -645,10 +665,10 @@ class RAGNodes:
                 question=state["question"],
                 chat_history=chat_history or "No previous conversation",
             )
-        
+
         response = await self.llm.ainvoke(prompt)
         answer = response.content.strip()
-        
+
         return {
             "answer": answer,
             "processing_steps": ["generate"],

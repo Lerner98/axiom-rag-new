@@ -51,6 +51,9 @@ Is this document relevant? Answer with ONLY 'yes' or 'no':"""
 
 # === Generation ===
 
+# NOTE: Prompt order optimized for Ollama KV cache hits
+# Static content (system + rules) at TOP -> cached across queries
+# Dynamic content (context, history, question) at BOTTOM -> varies per query
 GENERATION_PROMPT = """You are a helpful assistant answering questions based on provided context.
 
 RULES:
@@ -60,17 +63,21 @@ RULES:
 4. Be concise but complete
 5. If multiple sources agree, mention that for credibility
 
-Context:
+---
+CONTEXT:
 {context}
 
-Question: {question}
-
-Chat history (for conversation continuity):
+---
+CHAT HISTORY:
 {chat_history}
+
+---
+USER QUESTION: {question}
 
 Answer:"""
 
 
+# NOTE: Retry prompt also optimized for KV cache
 GENERATION_WITH_RETRY_PROMPT = """You are a helpful assistant answering questions based on provided context.
 
 RULES:
@@ -80,10 +87,12 @@ RULES:
 4. Every claim must be directly traceable to a specific source
 5. Be precise and avoid generalizations not supported by the text
 
-Context:
+---
+CONTEXT:
 {context}
 
-Question: {question}
+---
+USER QUESTION: {question}
 
 Answer:"""
 

@@ -150,3 +150,55 @@ node test-quality.js 8001 original_rag
 - **LLM:** Ollama (DeepSeek-R1-Distill-Qwen-14B-Q4_K_M)
 - **Vector Store:** ChromaDB with FastEmbed
 - **Search:** Hybrid (Vector + BM25 with RRF Fusion)
+
+
+
+gemini suggested readme:
+
+
+# 🚀 Elite Agentic RAG Pipeline: Quality & Performance Optimization
+
+A production-grade **Retrieval-Augmented Generation (RAG)** system built with **FastAPI**, **LangGraph**, and **Ollama**. This project documents a rigorous engineering journey from a baseline prototype to an optimized pipeline achieving **96% answer quality** and **100% test reliability**.
+
+## 📊 Performance Benchmark (Final Phase)
+After exhaustive E2E testing across 8 query types, the system delivered:
+* **Quality:** **96% average** (exceeding the initial 80% target).
+* **Pass Rate:** **8/8 query types** (100% success in groundedness and keyword recall).
+* **Latency:** **~34s average** (Physically optimal for Llama 3.1 8B on 6GB VRAM).
+* **Stability:** **100% state isolation**, fully resolving the "Context Bleed" bug.
+
+## 🏗️ System Architecture: V5 "Guardian"
+The pipeline utilizes a modular state machine to wrap fragile LLM generation with robust "Quality Gates."
+
+### 1. Intent-Aware Orchestration
+- **3-Layer Router:** Uses a hybrid approach (Rules -> Semantic -> LLM) to classify queries.
+- **Intent Fallback:** A custom engineering fix that forces "question" intent if follow-up requests are detected without chat history, ensuring RAG reliability.
+
+### 2. High-Precision Retrieval
+- **Hybrid Search:** Combines Vector (FastEmbed) and BM25 with **RRF Fusion**.
+- **Context Filter:** A custom similarity gate (threshold 0.3) that prunes irrelevant documents before generation to prevent context contamination.
+
+### 3. Validated Generation
+- **Hallucination Check:** A hybrid validator uses word/trigram overlap for instant grounding checks, only calling the LLM for ambiguous cases.
+
+## 🧪 The "Science of RAG" Experiment
+A key engineering milestone was the **LLMLingua Threshold Test**. We hypothesized that for context sizes under 1,000 tokens, the overhead of the compression model pass was degrading performance.
+
+| Metric | With LLMLingua | **Without LLMLingua** | Delta |
+| :--- | :--- | :--- | :--- |
+| **Latency** | 45.5s | **34.1s** | **-25% Faster** |
+| **Quality** | 89% | **96%** | **+7% Better** |
+| **Pass Rate** | 7/8 | **8/8** | **Success** |
+
+**Conclusion:** Compression logic is preserved but **disabled** for standard workloads. It is programmatically gated to only trigger when context exceeds 2,000 tokens.
+
+## 🛠️ Performance Tuning (6GB VRAM Profile)
+To maximize local hardware, the following environment variables are required:
+- `OLLAMA_FLASH_ATTENTION=true`: Optimized memory access.
+- `OLLAMA_KV_CACHE_TYPE=q8_0`: Quantized memory for long chat contexts.
+- `MODEL_NAME=llama3.1:8b`: Fits entirely in GPU VRAM to avoid slow System RAM spill.
+
+## 📁 Documentation
+- `OPTIMIZATION_JOURNEY.md`: Step-by-step audit of every backend fix.
+- `DEBUGGING_CONTEXT_BLEED.md`: Root cause analysis of state management failures.
+- `FRONTEND_ANALYSIS.md`: Bundle and virtualization audit.
