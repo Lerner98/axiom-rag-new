@@ -25,6 +25,7 @@ from rag.prompts import (
     HALLUCINATION_CHECK_PROMPT,
     format_sources_for_prompt,
 )
+from rag.utils import extract_relevant_snippet
 from config.settings import settings
 
 logger = logging.getLogger(__name__)
@@ -562,31 +563,35 @@ class RAGNodes:
                 
                 # Build relevant documents from reranked results
                 relevant_documents = []
-                sources = []
-                
+                sources_by_file = {}  # Dedupe by filename - show DOCUMENTS not chunks
+
                 for orig_idx, score in reranked:
                     doc = docs_to_grade[orig_idx]
-                    
+
                     # Update relevance score with reranker score
                     doc_with_score = {
                         **doc,
                         "relevance_score": float(score) * 100,  # Convert to percentage
                     }
                     relevant_documents.append(doc_with_score)
-                    
-                    # Build source info
-                    sources.append({
-                        "source": doc["metadata"].get("source", "unknown"),
-                        "filename": doc["metadata"].get("source", "unknown"),
-                        "page": doc["metadata"].get("page"),
-                        "chunk_id": doc["metadata"].get("chunk_id", ""),
-                        "relevance_score": float(score) * 100,
-                        "content_preview": doc["content"][:300],
-                        "page_content": doc["content"],
-                    })
-                
-                logger.info(f"Reranker returned {len(relevant_documents)} relevant documents")
-                
+
+                    # Group by document filename - keep highest scoring chunk's info
+                    filename = doc["metadata"].get("source", "unknown")
+                    score_pct = float(score) * 100
+
+                    if filename not in sources_by_file or score_pct > sources_by_file[filename]["relevance_score"]:
+                        sources_by_file[filename] = {
+                            "source": filename,
+                            "filename": filename,
+                            "page": doc["metadata"].get("page"),
+                            "chunk_id": doc["metadata"].get("chunk_id", ""),
+                            "relevance_score": score_pct,
+                            "content_preview": extract_relevant_snippet(query, doc["content"]),
+                        }
+
+                sources = list(sources_by_file.values())
+                logger.info(f"Reranker: {len(relevant_documents)} chunks from {len(sources)} unique documents")
+
                 return {
                     "relevant_documents": relevant_documents,
                     "sources": sources,
@@ -600,7 +605,7 @@ class RAGNodes:
         threshold = settings.relevance_threshold * 100  # Convert to percentage
 
         relevant_documents = []
-        sources = []
+        sources_by_file = {}  # Dedupe by filename - show DOCUMENTS not chunks
 
         # Sort by score and take top final_k
         sorted_docs = sorted(
@@ -608,24 +613,28 @@ class RAGNodes:
             key=lambda x: x.get("relevance_score", 0),
             reverse=True
         )[:final_k]
-        
+
         for doc in sorted_docs:
             score = doc.get("relevance_score", 0)
-            
+
             # Include if above threshold OR if we have no relevant docs yet
             if score >= threshold or not relevant_documents:
                 relevant_documents.append(doc)
-                sources.append({
-                    "source": doc["metadata"].get("source", "unknown"),
-                    "filename": doc["metadata"].get("source", "unknown"),
-                    "page": doc["metadata"].get("page"),
-                    "chunk_id": doc["metadata"].get("chunk_id", ""),
-                    "relevance_score": score,
-                    "content_preview": doc["content"][:300],
-                    "page_content": doc["content"],
-                })
-        
-        logger.info(f"Threshold filter returned {len(relevant_documents)} relevant documents")
+
+                # Group by document filename - keep highest scoring chunk's info
+                filename = doc["metadata"].get("source", "unknown")
+                if filename not in sources_by_file or score > sources_by_file[filename]["relevance_score"]:
+                    sources_by_file[filename] = {
+                        "source": filename,
+                        "filename": filename,
+                        "page": doc["metadata"].get("page"),
+                        "chunk_id": doc["metadata"].get("chunk_id", ""),
+                        "relevance_score": score,
+                        "content_preview": extract_relevant_snippet(query, doc["content"]),
+                    }
+
+        sources = list(sources_by_file.values())
+        logger.info(f"Threshold: {len(relevant_documents)} chunks from {len(sources)} unique documents")
 
         return {
             "relevant_documents": relevant_documents,

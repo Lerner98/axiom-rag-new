@@ -59,9 +59,9 @@ GENERATION_PROMPT = """You are a helpful assistant answering questions based on 
 RULES:
 1. Answer ONLY based on the provided context
 2. If the context doesn't contain enough information, say "I don't have enough information about that in the knowledge base"
-3. Cite your sources using [Source N] format where N corresponds to the source number
+3. Do NOT include source citations in your answer - sources are shown separately in the UI
 4. Be concise but complete
-5. If multiple sources agree, mention that for credibility
+5. Write naturally without referencing "the context" or "the documents" - just answer directly
 
 ---
 CONTEXT:
@@ -83,9 +83,10 @@ GENERATION_WITH_RETRY_PROMPT = """You are a helpful assistant answering question
 RULES:
 1. Answer ONLY based on the provided context - do not add any information not present in the sources
 2. If the context doesn't contain enough information, say "I don't have enough information about that in the knowledge base"
-3. Cite your sources using [Source N] format where N corresponds to the source number
-4. Every claim must be directly traceable to a specific source
+3. Do NOT include source citations in your answer - sources are shown separately in the UI
+4. Every claim must be directly traceable to the provided context
 5. Be precise and avoid generalizations not supported by the text
+6. Write naturally without referencing "the context" or "the documents" - just answer directly
 
 ---
 CONTEXT:

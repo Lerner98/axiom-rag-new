@@ -141,19 +141,22 @@ export function Sidebar() {
           </Button>
         </div>
 
-        {/* New Chat Button - disabled during streaming */}
-        <div className="p-4">
-          <Button
+        {/* New Chat Button - subtle row style like Claude */}
+        <div className="px-2 py-3">
+          <button
             onClick={handleNewChat}
             disabled={isStreaming}
             className={cn(
-              "w-full justify-start gap-2 bg-primary text-primary-foreground hover:bg-primary/90",
+              "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium",
+              "text-sidebar-foreground hover:bg-sidebar-hover transition-colors",
               isStreaming && "opacity-50 cursor-not-allowed"
             )}
           >
-            <Plus className="h-4 w-4" />
-            New Chat
-          </Button>
+            <div className="w-6 h-6 rounded-full bg-primary flex items-center justify-center shrink-0">
+              <Plus className="h-3.5 w-3.5 text-primary-foreground" />
+            </div>
+            New chat
+          </button>
         </div>
 
         {/* Chat History */}
