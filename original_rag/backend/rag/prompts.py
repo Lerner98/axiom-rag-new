@@ -51,39 +51,42 @@ Is this document relevant? Answer with ONLY 'yes' or 'no':"""
 
 # === Generation ===
 
-GENERATION_PROMPT = """You are a helpful assistant answering questions based on provided context.
+# NOTE: Prompt order optimized for Ollama KV cache hits
+# Static content (system + rules) at TOP -> cached across queries
+# Dynamic content (context, history, question) at BOTTOM -> varies per query
+GENERATION_PROMPT = """Answer the user's question using the provided context.
 
 RULES:
-1. Answer ONLY based on the provided context
-2. If the context doesn't contain enough information, say "I don't have enough information about that in the knowledge base"
-3. Cite your sources using [Source N] format where N corresponds to the source number
-4. Be concise but complete
-5. If multiple sources agree, mention that for credibility
+1. Answer directly based on what's in the context - don't be overly cautious
+2. If the context contains relevant information, USE IT to answer
+3. Only say you don't know if the context truly has nothing relevant
+4. Write naturally - never mention "context", "documents", "sources", or use citations like [Source 1]
+5. Match answer length to question complexity
 
-Context:
+CONTEXT:
 {context}
 
-Question: {question}
-
-Chat history (for conversation continuity):
+CHAT HISTORY:
 {chat_history}
+
+QUESTION: {question}
 
 Answer:"""
 
 
-GENERATION_WITH_RETRY_PROMPT = """You are a helpful assistant answering questions based on provided context.
+# NOTE: Retry prompt also optimized for KV cache
+GENERATION_WITH_RETRY_PROMPT = """Your previous answer may have included unsupported information. Try again, sticking strictly to the context.
 
 RULES:
-1. Answer ONLY based on the provided context - do not add any information not present in the sources
-2. If the context doesn't contain enough information, say "I don't have enough information about that in the knowledge base"
-3. Cite your sources using [Source N] format where N corresponds to the source number
-4. Every claim must be directly traceable to a specific source
-5. Be precise and avoid generalizations not supported by the text
+1. ONLY use information explicitly stated in the context
+2. If something isn't clearly stated, don't include it
+3. Never use citations like [Source 1] - the UI shows sources separately
+4. Write naturally without mentioning "context" or "documents"
 
-Context:
+CONTEXT:
 {context}
 
-Question: {question}
+QUESTION: {question}
 
 Answer:"""
 
@@ -133,17 +136,23 @@ Summary:"""
 
 # === Source Formatting ===
 
-SOURCE_TEMPLATE = """[Source {index}: {filename}]
+SOURCE_TEMPLATE = """--- {filename} ---
 {content}
 """
 
 def format_sources_for_prompt(documents: list[dict]) -> str:
     """Format retrieved documents for inclusion in prompts."""
     formatted = []
-    for i, doc in enumerate(documents, 1):
+    for doc in documents:
+        content = doc.get("content", "")[:1000]
+        # Try to truncate at sentence boundary
+        if len(content) == 1000:
+            last_period = content.rfind('.')
+            if last_period > 700:
+                content = content[:last_period + 1]
+
         formatted.append(SOURCE_TEMPLATE.format(
-            index=i,
             filename=doc.get("metadata", {}).get("filename", "Unknown"),
-            content=doc.get("content", "")[:1000]  # Truncate long content
+            content=content
         ))
-    return "\n---\n".join(formatted)
+    return "\n".join(formatted)

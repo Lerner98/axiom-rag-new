@@ -28,6 +28,9 @@ rank-bm25>=0.2.2
 # Reranker - Cross-Encoder (optional, for quality)
 sentence-transformers>=2.2.0
 
+# Context Compression - LLMLingua (reduces prefill latency by 70%)
+llmlingua>=0.2.0
+
 # Document Processing
 pypdf>=3.17.0
 unstructured>=0.12.0

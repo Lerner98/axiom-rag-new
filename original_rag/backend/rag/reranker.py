@@ -115,11 +115,26 @@ class CrossEncoderReranker(BaseReranker):
             None,
             lambda: self._model.predict(pairs)
         )
-        
-        # Normalize scores to 0-1 range using sigmoid
+
+        # Normalize scores to 0-1 range
+        # ms-marco models output logits (-10 to +10 typically)
+        # Using min-max normalization to spread scores across 0-1 range
+        # This gives more meaningful relevance percentages for display
         import numpy as np
-        normalized = 1 / (1 + np.exp(-np.array(scores)))
-        
+        scores_arr = np.array(scores)
+
+        if len(scores_arr) > 1:
+            # Min-max normalization across the batch
+            min_score = scores_arr.min()
+            max_score = scores_arr.max()
+            if max_score > min_score:
+                normalized = (scores_arr - min_score) / (max_score - min_score)
+            else:
+                normalized = np.ones_like(scores_arr) * 0.5
+        else:
+            # Single document - use sigmoid for absolute scoring
+            normalized = 1 / (1 + np.exp(-scores_arr))
+
         return normalized.tolist()
     
     async def rerank(
@@ -168,7 +183,7 @@ class OllamaReranker(BaseReranker):
     but works with any model.
     """
     
-    def __init__(self, model_name: str = "llama3.2", base_url: str = "http://localhost:11434"):
+    def __init__(self, model_name: str = "llama3.1:8b", base_url: str = "http://localhost:11434"):
         """
         Initialize Ollama reranker.
         
@@ -379,7 +394,7 @@ def create_reranker(
         )
     elif backend == "ollama":
         return OllamaReranker(
-            model_name=model_name or "llama3.2",
+            model_name=model_name or "llama3.1:8b",
             base_url=kwargs.get("base_url", "http://localhost:11434")
         )
     elif backend == "cohere":

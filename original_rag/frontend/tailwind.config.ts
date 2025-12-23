@@ -113,7 +113,7 @@ export default {
         "scale-in": "scale-in 0.2s ease-out",
       },
       width: {
-        sidebar: "280px",
+        sidebar: "240px",
       },
       maxWidth: {
         chat: "800px",
