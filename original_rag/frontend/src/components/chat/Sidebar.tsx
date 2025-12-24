@@ -167,7 +167,7 @@ export function Sidebar() {
             </span>
           </div>
 
-          <ScrollArea className="flex-1">
+          <ScrollArea className="flex-1 w-full">
             {chats.length === 0 ? (
               <div className="px-2 py-8 text-center">
                 <MessageSquare className="h-10 w-10 mx-auto mb-3 text-muted-foreground opacity-50" />
@@ -175,12 +175,12 @@ export function Sidebar() {
                 <p className="text-xs text-muted-foreground mt-1">Start a new chat to begin</p>
               </div>
             ) : (
-              <div className="space-y-0.5 px-2">
+              <div className="space-y-0.5 px-2 w-full">
                 {chats.map((chat) => (
                   <div
                     key={chat.id}
                     className={cn(
-                      'group relative flex items-center py-2.5 px-3 rounded-lg transition-colors',
+                      'group relative flex items-center py-2.5 px-3 rounded-lg transition-colors overflow-hidden',
                       currentChatId === chat.id
                         ? 'bg-sidebar-active'
                         : 'hover:bg-sidebar-hover',
@@ -192,7 +192,7 @@ export function Sidebar() {
                     onClick={() => handleChatSelect(chat.id)}
                   >
                     {/* Title - no icon, just text */}
-                    <div className="flex-1 min-w-0 pr-2">
+                    <div className="flex-1 min-w-0 max-w-[calc(100%-2rem)] overflow-hidden">
                       {editingChatId === chat.id ? (
                         <input
                           ref={editInputRef}
@@ -212,7 +212,13 @@ export function Sidebar() {
                           className="w-full text-sm bg-background border border-input rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-ring"
                         />
                       ) : (
-                        <p className="text-sm truncate text-sidebar-foreground">
+                        <p
+                          className="text-sm text-sidebar-foreground whitespace-nowrap overflow-hidden"
+                          style={{
+                            maskImage: 'linear-gradient(to right, black 70%, transparent 100%)',
+                            WebkitMaskImage: 'linear-gradient(to right, black 70%, transparent 100%)'
+                          }}
+                        >
                           {chat.title}
                         </p>
                       )}
@@ -228,8 +234,10 @@ export function Sidebar() {
                             className={cn(
                               "h-7 w-7 shrink-0 rounded-md flex items-center justify-center",
                               "text-muted-foreground hover:text-foreground hover:bg-sidebar-hover",
-                              "opacity-0 group-hover:opacity-100 data-[state=open]:opacity-100 transition-opacity",
-                              "focus:outline-none",
+                              "transition-opacity focus:outline-none",
+                              currentChatId === chat.id
+                                ? "opacity-100"
+                                : "opacity-0 group-hover:opacity-100 data-[state=open]:opacity-100",
                               isStreaming && "opacity-50 cursor-not-allowed"
                             )}
                             onClick={(e) => e.stopPropagation()}
@@ -237,7 +245,7 @@ export function Sidebar() {
                             <MoreHorizontal className="h-4 w-4" />
                           </button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-40">
+                        <DropdownMenuContent align="start" side="bottom" className="w-40">
                           <DropdownMenuItem
                             onClick={(e) => {
                               e.stopPropagation();
