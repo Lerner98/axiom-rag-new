@@ -1,13 +1,7 @@
-import { useState, useRef, useEffect } from 'react';
-import { Plus, Settings, MessageSquare, X, Trash2, Loader2, Pencil, MoreHorizontal } from 'lucide-react';
+import { useState } from 'react';
+import { Plus, Settings, MessageSquare, X, Trash2, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,6 +15,7 @@ import {
 import { useChatStore, Chat } from '@/stores/chatStore';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
+import { ChatItem } from './ChatItem';
 
 export function Sidebar() {
   const {
@@ -40,15 +35,6 @@ export function Sidebar() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [editingChatId, setEditingChatId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState('');
-  const editInputRef = useRef<HTMLInputElement>(null);
-
-  // Focus input when editing starts
-  useEffect(() => {
-    if (editingChatId && editInputRef.current) {
-      editInputRef.current.focus();
-      editInputRef.current.select();
-    }
-  }, [editingChatId]);
 
   const startEditing = (chat: Chat) => {
     setEditingChatId(chat.id);
@@ -89,7 +75,7 @@ export function Sidebar() {
 
   // Handle chat selection - disabled during streaming
   const handleChatSelect = (chatId: string) => {
-    if (isStreaming) return; // Don't allow chat switching while streaming
+    if (isStreaming) return;
     if (editingChatId !== chatId) {
       setCurrentChatId(chatId);
     }
@@ -167,7 +153,7 @@ export function Sidebar() {
             </span>
           </div>
 
-          <ScrollArea className="flex-1">
+          <ScrollArea className="flex-1 w-full">
             {chats.length === 0 ? (
               <div className="px-2 py-8 text-center">
                 <MessageSquare className="h-10 w-10 mx-auto mb-3 text-muted-foreground opacity-50" />
@@ -175,93 +161,22 @@ export function Sidebar() {
                 <p className="text-xs text-muted-foreground mt-1">Start a new chat to begin</p>
               </div>
             ) : (
-              <div className="space-y-0.5 px-2">
+              <div className="space-y-0.5 px-2 w-full">
                 {chats.map((chat) => (
-                  <div
+                  <ChatItem
                     key={chat.id}
-                    className={cn(
-                      'group relative flex items-center py-2.5 px-3 rounded-lg transition-colors',
-                      currentChatId === chat.id
-                        ? 'bg-sidebar-active'
-                        : 'hover:bg-sidebar-hover',
-                      // Disable interaction during streaming (except current chat for viewing)
-                      isStreaming && currentChatId !== chat.id
-                        ? 'opacity-50 cursor-not-allowed'
-                        : 'cursor-pointer'
-                    )}
-                    onClick={() => handleChatSelect(chat.id)}
-                  >
-                    {/* Title - no icon, just text */}
-                    <div className="flex-1 min-w-0 pr-2">
-                      {editingChatId === chat.id ? (
-                        <input
-                          ref={editInputRef}
-                          type="text"
-                          value={editingTitle}
-                          onChange={(e) => setEditingTitle(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              e.preventDefault();
-                              saveTitle();
-                            } else if (e.key === 'Escape') {
-                              cancelEditing();
-                            }
-                          }}
-                          onBlur={saveTitle}
-                          onClick={(e) => e.stopPropagation()}
-                          className="w-full text-sm bg-background border border-input rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-ring"
-                        />
-                      ) : (
-                        <p className="text-sm truncate text-sidebar-foreground">
-                          {chat.title}
-                        </p>
-                      )}
-                    </div>
-
-                    {/* Single "..." menu button */}
-                    {editingChatId !== chat.id && (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <button
-                            type="button"
-                            disabled={isStreaming}
-                            className={cn(
-                              "h-7 w-7 shrink-0 rounded-md flex items-center justify-center",
-                              "text-muted-foreground hover:text-foreground hover:bg-sidebar-hover",
-                              "opacity-0 group-hover:opacity-100 data-[state=open]:opacity-100 transition-opacity",
-                              "focus:outline-none",
-                              isStreaming && "opacity-50 cursor-not-allowed"
-                            )}
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <MoreHorizontal className="h-4 w-4" />
-                          </button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-40">
-                          <DropdownMenuItem
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              startEditing(chat);
-                            }}
-                            className="cursor-pointer"
-                          >
-                            <Pencil className="h-4 w-4 mr-2" />
-                            Rename
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setDeleteConfirmChat(chat);
-                            }}
-                            className="cursor-pointer text-destructive focus:text-destructive"
-                          >
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    )}
-                  </div>
+                    chat={chat}
+                    isActive={currentChatId === chat.id}
+                    isEditing={editingChatId === chat.id}
+                    isStreaming={isStreaming}
+                    editingTitle={editingTitle}
+                    onSelect={() => handleChatSelect(chat.id)}
+                    onStartEditing={() => startEditing(chat)}
+                    onDeleteRequest={() => setDeleteConfirmChat(chat)}
+                    onTitleChange={setEditingTitle}
+                    onSaveTitle={saveTitle}
+                    onCancelEditing={cancelEditing}
+                  />
                 ))}
               </div>
             )}
