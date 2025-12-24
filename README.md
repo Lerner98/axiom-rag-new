@@ -18,7 +18,7 @@ Other options either:
 - **Send your data to the cloud** (ChatGPT, Claude, Gemini)
 - **Require technical setup** (LM Studio, Ollama CLI, LocalAI)
 
-Axiom gives you a **clean chat interface** for your documents with everything running locally. No terminal commands. No model configuration. Just upload and ask.
+Axiom gives you a **clean chat interface** for your documents with everything running locally. No terminal commands after setup. No model configuration. Just upload and ask.
 
 ---
 
@@ -27,7 +27,7 @@ Axiom gives you a **clean chat interface** for your documents with everything ru
 - **Complete privacy** — Nothing leaves your machine. Ever.
 - **Simple interface** — Upload documents, start chatting. That's it.
 - **Source citations** — See exactly where every answer comes from
-- **Accurate answers** — 96% quality score on our benchmark tests
+- **Hallucination detection** — Answers are verified against your documents
 
 ---
 
@@ -53,18 +53,22 @@ ollama pull llama3.1:8b
 ollama serve
 ```
 
-Open http://localhost:5173 — upload a document and start asking questions.
+Open http://localhost:8080 — upload a document and start asking questions.
 
 ---
 
-## Performance
+## What's Under the Hood
 
-| Metric | Value |
-|--------|-------|
-| **Answer Quality** | 96% accuracy |
-| **Response Time** | ~34s (6GB VRAM) |
-| **Search** | <100ms |
-| **Memory** | <500MB |
+| Feature | Implementation |
+|---------|----------------|
+| **Hybrid Search** | Vector (FastEmbed) + BM25 keyword search |
+| **Smart Chunking** | Small chunks for search, large context for answers |
+| **Cross-Encoder Reranking** | AI scores and picks the most relevant results |
+| **Hallucination Check** | Verifies answers are grounded in your documents |
+| **3-Layer Intent Router** | Knows greetings from questions, handles follow-ups |
+| **Session Isolation** | Each chat stays separate, no context bleed |
+| **BM25 Persistence** | Keyword search survives server restarts |
+| **Real-time Streaming** | See answers as they're generated |
 
 ---
 
@@ -83,22 +87,21 @@ Open http://localhost:5173 — upload a document and start asking questions.
 
 | Component | Technology |
 |-----------|------------|
-| Frontend | React, TypeScript, Tailwind |
+| Frontend | React, TypeScript, Vite, Tailwind, shadcn/ui |
 | Backend | FastAPI, LangGraph |
 | LLM | Ollama (llama3.1:8b) |
 | Vector Store | ChromaDB |
-| Embeddings | FastEmbed |
+| Embeddings | FastEmbed (BAAI/bge-small-en-v1.5) |
+| Reranker | Cross-Encoder (ms-marco-MiniLM) |
 
 ---
 
-## Roadmap
+## Documentation
 
-- [x] Private local chat with documents
-- [x] Source citations
-- [x] Real-time streaming
-- [x] Chat-scoped document isolation
-- [ ] Optional cloud mode (for users who want it)
-- [ ] Multi-user support
+See [original_rag/docs/](original_rag/docs/) for detailed technical documentation:
+- `ENGINEERING_JOURNEY.md` — Full optimization story
+- `RAG_Pipeline_Architecture.md` — System architecture
+- `BENCHMARK_RESULTS.md` — Performance data
 
 ---
 
