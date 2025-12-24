@@ -62,13 +62,6 @@ export function DocumentPanel({ chatId, chatTitle }: DocumentPanelProps) {
     }
   }, [chatId]);
 
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      await uploadFiles(Array.from(e.target.files));
-    }
-    e.target.value = '';
-  };
-
   const uploadFiles = async (files: File[]) => {
     setIsUploading(true);
     setUploadError(null);
@@ -153,28 +146,20 @@ export function DocumentPanel({ chatId, chatTitle }: DocumentPanelProps) {
           </Button>
         </div>
 
-        {/* Upload zone */}
+        {/* Upload zone - drag and drop only */}
         <div className="p-4">
           <div
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
             className={cn(
-              'relative border-2 border-dashed rounded-lg p-4 text-center transition-colors',
+              'border-2 border-dashed rounded-lg p-4 text-center transition-colors',
               isDragging
                 ? 'border-primary bg-primary/5'
-                : 'border-border hover:border-primary/50 hover:bg-muted/50',
+                : 'border-border',
               isUploading && 'opacity-50 pointer-events-none'
             )}
           >
-            <input
-              type="file"
-              accept={acceptedTypes.join(',')}
-              multiple
-              onChange={handleFileSelect}
-              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-              disabled={isUploading}
-            />
             {isUploading ? (
               <div className="flex flex-col items-center gap-2">
                 <Loader2 className="h-6 w-6 animate-spin text-primary" />
