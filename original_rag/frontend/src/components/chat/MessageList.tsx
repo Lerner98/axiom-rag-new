@@ -183,7 +183,7 @@ export function MessageList() {
           For a more "viewport-centered" feel, we can add some responsive
           left padding when sidebar is open on larger screens.
         */}
-        <div className="w-full max-w-chat mx-auto px-4 sm:px-6 py-6 space-y-4">
+        <div className="w-full max-w-chat mx-auto px-6 py-6 space-y-4">
           {messages.map((message) => (
             <MessageBubble key={message.id} message={message} />
           ))}

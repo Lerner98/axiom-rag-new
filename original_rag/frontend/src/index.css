@@ -39,6 +39,9 @@
     /* Custom tokens */
     --sidebar-width: 240px;
     --chat-max-width: 800px;
+
+    /* Sidebar chat item dimensions */
+    --sidebar-menu-btn-size: 1.75rem; /* 28px - menu button width/height */
     
     --user-bubble: 217 91% 60%;
     --user-bubble-foreground: 0 0% 100%;
@@ -126,6 +129,16 @@
 }
 
 @layer utilities {
+  /**
+   * Text fade effect - fades text to transparent at the right edge
+   * Used instead of text-overflow: ellipsis for smoother visual truncation
+   * Example: <p class="text-fade-right">Long text here...</p>
+   */
+  .text-fade-right {
+    mask-image: linear-gradient(to right, black 70%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to right, black 70%, transparent 100%);
+  }
+
   .scrollbar-thin {
     scrollbar-width: thin;
     scrollbar-color: hsl(var(--muted-foreground) / 0.3) transparent;
@@ -191,6 +204,20 @@
 }
 
 @layer components {
+  /**
+   * Sidebar menu button - fixed size button used in chat items
+   * Uses CSS custom property for consistent sizing
+   */
+  .sidebar-menu-btn {
+    width: var(--sidebar-menu-btn-size);
+    height: var(--sidebar-menu-btn-size);
+    flex-shrink: 0;
+    border-radius: 0.375rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
   .typing-dot {
     @apply w-2 h-2 rounded-full bg-muted-foreground;
     animation: typing-bounce 1.4s infinite ease-in-out both;
