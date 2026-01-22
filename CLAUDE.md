@@ -87,6 +87,7 @@ OLLAMA_NUM_CTX=4096
 
 ## Documentation
 
-- [original_rag/README.md](original_rag/README.md) - Developer reference
-- [original_rag/docs/](original_rag/docs/) - Architecture and pipeline docs
-- [original_rag/CLAUDE.md](original_rag/CLAUDE.md) - RAG-specific configuration
+- [result-existing-rag-project.md](result-existing-rag-project.md) - **In-depth technical reference** (read this first for full system understanding)
+- [original_rag/CLAUDE.md](original_rag/CLAUDE.md) - RAG baselines, critical rules, optimization roadmap
+- [original_rag/README.md](original_rag/README.md) - Developer quickstart
+- [original_rag/docs/](original_rag/docs/) - Architecture decision records
