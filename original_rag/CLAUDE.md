@@ -100,11 +100,12 @@ Re-enable compression when context exceeds threshold.
 
 | File | Purpose |
 |------|---------|
-| `rag/nodes.py` | Pipeline nodes, intent fallback fix (line 153-169) |
-| `rag/context_compressor.py` | LLMLingua (disabled, ready for large context) |
-| `rag/context_filter.py` | Context bleed prevention |
+| `rag/nodes.py` | Pipeline nodes, intent fallback, hallucination detection |
 | `rag/intent_router.py` | 3-layer hybrid classification (hard rules → semantic → LLM) |
-| `rag/hallucination.py` | Answer verification against context |
+| `rag/retriever.py` | Hybrid search (Vector + BM25 + RRF fusion) |
+| `rag/reranker.py` | Cross-encoder reranking (ms-marco-MiniLM) |
+| `rag/context_filter.py` | Context bleed prevention |
+| `rag/context_compressor.py` | LLMLingua (disabled, ready for large context) |
 | `test-quality.js` | Benchmark with session isolation |
 
 ## Pipeline Architecture

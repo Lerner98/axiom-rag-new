@@ -1,18 +1,52 @@
 # CLAUDE.md - Axiom RAG Project Configuration
 
-## Prime Directives
+## Code Standards
 
-### Git Safety
-- NEVER use `git diff --reset`, `git checkout .`, or destructive git commands without explicit approval
-- NEVER include co-authored-by lines or Claude Code attribution in commits
-- Understand code by reading it directly, not by trusting commit history blindly
-- Always stage specific files, never use `git add -A` or `git add .`
-
-### Code Quality
 - Read existing code before modifying
 - No over-engineering or speculative features
 - Fix only what is requested
 - Keep solutions minimal and focused
+
+## Commit Format
+
+```
+<type>(<scope>): <subject>
+
+<body - what and why, not how>
+```
+
+**Types:** `feat`, `fix`, `refactor`, `perf`, `test`, `docs`, `chore`
+
+**Scopes:** `rag`, `ingest`, `api`, `frontend`, `vectorstore`, `memory`, `config`
+
+### Good Commits
+```
+feat(rag): implement semantic query caching
+
+- Cache query embeddings with TTL
+- Return cached answers for >0.95 similarity
+- Bypass LLM entirely for cache hits
+
+fix(ingest): prevent duplicate chunks on re-upload
+
+Add content hash check before inserting to ChromaDB.
+Skip chunks that already exist in collection.
+
+perf(rag): reduce prefill by adaptive context sizing
+
+- Simple queries: 2-3 docs instead of 5
+- Complex queries: keep full 5 docs
+- 30-40% latency reduction for simple queries
+```
+
+### Bad Commits (NEVER)
+```
+"Updated files"
+"Fixed bug"
+"Changes"
+"WIP"
+"Various improvements"
+```
 
 ## Project Structure
 
@@ -49,17 +83,6 @@ Required Ollama variables (restart Ollama after setting):
 OLLAMA_FLASH_ATTENTION=true
 OLLAMA_KV_CACHE_TYPE=q8_0
 OLLAMA_NUM_CTX=4096
-```
-
-PowerShell startup script (`start-ollama.ps1`):
-
-```powershell
-$env:OLLAMA_FLASH_ATTENTION="true"
-$env:OLLAMA_KV_CACHE_TYPE="q8_0"
-$env:OLLAMA_NUM_CTX="4096"
-Stop-Process -Name "ollama" -ErrorAction SilentlyContinue
-Start-Sleep -Seconds 2
-ollama serve
 ```
 
 ## Documentation
