@@ -174,7 +174,7 @@ class IngestionService:
 
             # TIMING: Build/Update BM25 index for hybrid search
             t4 = time.time()
-            await self._update_bm25_index(job.collection_name, chunks)
+            await self._update_bm25_index(job.collection_name, chunks, job)
             t_bm25 = time.time() - t4
             logger.info(f"⏱️ BM25 INDEX: {t_bm25:.2f}s")
 
@@ -199,19 +199,28 @@ class IngestionService:
             job.errors.append(str(e))
             job.completed_at = datetime.utcnow()
 
-    async def _update_bm25_index(self, collection_name: str, new_chunks: List[Document]):
-        """Update BM25 index with new chunks."""
+    async def _update_bm25_index(self, collection_name: str, new_chunks: List[Document], job: Optional[IngestionJob] = None):
+        """Update BM25 index with new chunks.
+
+        Args:
+            collection_name: Collection to update
+            new_chunks: Chunks to add to index
+            job: Optional job to record partial failures
+        """
         retriever = self._get_hybrid_retriever()
         if retriever is None:
             logger.debug("HybridRetriever not available, skipping BM25 index update")
             return
-        
+
         try:
             # Add new chunks to existing index (rebuilds if necessary)
             retriever.add_to_bm25_index(collection_name, new_chunks)
             logger.info(f"Updated BM25 index for {collection_name}: +{len(new_chunks)} chunks")
         except Exception as e:
-            logger.warning(f"Failed to update BM25 index: {e}")
+            error_msg = f"BM25 index update failed: {e} - hybrid search may be degraded"
+            logger.error(error_msg)
+            if job:
+                job.errors.append(error_msg)
 
     async def rebuild_bm25_index(self, collection_name: str):
         """Rebuild BM25 index from all chunks in collection."""
@@ -283,7 +292,7 @@ class IngestionService:
             await vector_store.add_documents(chunks, collection_name=job.collection_name)
 
             # Update BM25 index
-            await self._update_bm25_index(job.collection_name, chunks)
+            await self._update_bm25_index(job.collection_name, chunks, job)
 
             job.documents_processed = len(texts)
             job.status = JobStatus.COMPLETED
@@ -343,7 +352,7 @@ class IngestionService:
             await vector_store.add_documents(chunks, collection_name=job.collection_name)
 
             # Update BM25 index
-            await self._update_bm25_index(job.collection_name, chunks)
+            await self._update_bm25_index(job.collection_name, chunks, job)
 
             job.documents_processed = 1
             job.status = JobStatus.COMPLETED

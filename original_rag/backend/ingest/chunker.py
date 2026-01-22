@@ -60,7 +60,15 @@ class ParentChildChunker:
         self.parent_chunk_overlap = parent_chunk_overlap or settings.parent_chunk_overlap
         self.child_chunk_size = child_chunk_size or settings.child_chunk_size
         self.child_chunk_overlap = child_chunk_overlap or settings.child_chunk_overlap
-        
+
+        # Validation
+        if self.parent_chunk_size <= 0:
+            raise ValueError("parent_chunk_size must be positive")
+        if self.child_chunk_size <= 0:
+            raise ValueError("child_chunk_size must be positive")
+        if self.child_chunk_size > self.parent_chunk_size:
+            raise ValueError("child_chunk_size cannot exceed parent_chunk_size")
+
         # Parent splitter - large chunks for context
         self.parent_splitter = RecursiveCharacterTextSplitter(
             chunk_size=self.parent_chunk_size,

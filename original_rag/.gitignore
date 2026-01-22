@@ -61,7 +61,6 @@ frontend/dist/
 .idea/
 .vscode/
 .claude/
-CLAUDE.md
 *.swp
 *.swo
 *~

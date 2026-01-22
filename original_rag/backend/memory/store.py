@@ -56,6 +56,11 @@ class BaseMemoryStore(ABC):
         """List all session IDs."""
         pass
 
+    @abstractmethod
+    async def close(self) -> None:
+        """Close any open connections. Call on shutdown."""
+        pass
+
 
 class SQLiteMemoryStore(BaseMemoryStore):
     """SQLite-based conversation memory store."""
@@ -101,6 +106,11 @@ class SQLiteMemoryStore(BaseMemoryStore):
         metadata: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Add a message to the conversation history."""
+        if not session_id or not session_id.strip():
+            raise ValueError("session_id cannot be empty")
+        if role not in ('user', 'assistant'):
+            raise ValueError("role must be 'user' or 'assistant'")
+
         await self._ensure_initialized()
         import aiosqlite
 
@@ -123,6 +133,9 @@ class SQLiteMemoryStore(BaseMemoryStore):
         limit: int = 50,
     ) -> List[Dict[str, Any]]:
         """Get conversation history for a session."""
+        if not session_id or not session_id.strip():
+            raise ValueError("session_id cannot be empty")
+
         await self._ensure_initialized()
         import aiosqlite
 
@@ -179,6 +192,10 @@ class SQLiteMemoryStore(BaseMemoryStore):
             rows = await cursor.fetchall()
 
         return [row[0] for row in rows]
+
+    async def close(self) -> None:
+        """SQLite uses context managers per-operation, no persistent connection."""
+        self._initialized = False
 
 
 class RedisMemoryStore(BaseMemoryStore):
@@ -248,6 +265,13 @@ class RedisMemoryStore(BaseMemoryStore):
         keys = await client.keys("rag:memory:*")
         return [k.decode().replace("rag:memory:", "") for k in keys]
 
+    async def close(self) -> None:
+        """Close Redis connection and release resources."""
+        if self._client:
+            await self._client.close()
+            self._client = None
+            logger.info("Redis memory store connection closed")
+
 
 class MemoryStore:
     """
@@ -267,6 +291,13 @@ class MemoryStore:
                 cls._instance = SQLiteMemoryStore()
             logger.info(f"Using {settings.memory_backend} memory backend")
         return cls._instance
+
+    @classmethod
+    async def close(cls) -> None:
+        """Close the memory store connection. Call on app shutdown."""
+        if cls._instance:
+            await cls._instance.close()
+            cls._instance = None
 
 
 # Convenience instance
