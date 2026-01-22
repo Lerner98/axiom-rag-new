@@ -1,42 +1,58 @@
-# CLAUDE.md - RAG Pipeline Configuration
+# CLAUDE.md - Axiom RAG Project Configuration
 
-## Current Baseline (6GB VRAM)
-| Metric | Value | Status |
-|--------|-------|--------|
-| Model | llama3.1:8b (4.9GB) | Active |
-| Quality | 96% avg | PASS |
-| Pass Rate | 8/8 tests | PASS |
-| Latency | ~34s avg | NEEDS WORK |
+## Prime Directives
 
-## Critical Rules
+### Git Safety
+- NEVER use `git diff --reset`, `git checkout .`, or destructive git commands without explicit approval
+- NEVER include co-authored-by lines or Claude Code attribution in commits
+- Understand code by reading it directly, not by trusting commit history blindly
+- Always stage specific files, never use `git add -A` or `git add .`
 
-1. **LLMLingua Compression**: DISABLED for context < 2000 tokens
-   - Overhead (14s) exceeds prefill savings at small context sizes
-   - Code preserved in `context_compressor.py` for future large-context use
+### Code Quality
+- Read existing code before modifying
+- No over-engineering or speculative features
+- Fix only what is requested
+- Keep solutions minimal and focused
 
-2. **Session Isolation**: ALWAYS use unique `session_id` per query
-   - Prevents memory/context bleed between queries
-   - Test script generates: `session-{timestamp}-{random}`
+## Project Structure
 
-3. **Intent Fallback**: If no chat history exists, force `FOLLOWUP` → `QUESTION`
-   - Prevents standalone queries from skipping RAG
-   - Fixed in `nodes.py:classify_intent()`
+```
+Toon/
+├── original_rag/           # Main application
+│   ├── backend/            # FastAPI + RAG pipeline
+│   ├── frontend/           # React + TypeScript
+│   └── docs/               # Technical documentation
+└── ARCHIVED/               # Deprecated files
+```
 
-4. **Model Selection**: NEVER use reasoning models (DeepSeek-R1, etc.)
-   - `<think>` tags cause 200-350s latency per query
-   - Use standard completion models only
+## Quick Commands
+
+```bash
+# Start backend (port 8001)
+cd original_rag/backend && python -m uvicorn api.main:app --port 8001
+
+# Start frontend (port 8080)
+cd original_rag/frontend && npm run dev
+
+# Run benchmark
+node test-quality.js 8001 original_rag
+
+# Check Ollama models
+ollama list
+```
 
 ## Environment Setup
 
-Required OS-level variables (restart Ollama after setting):
+Required Ollama variables (restart Ollama after setting):
+
 ```
 OLLAMA_FLASH_ATTENTION=true
 OLLAMA_KV_CACHE_TYPE=q8_0
 OLLAMA_NUM_CTX=4096
 ```
 
-### PowerShell Startup Script
-Save as `start-ollama.ps1` in project root:
+PowerShell startup script (`start-ollama.ps1`):
+
 ```powershell
 $env:OLLAMA_FLASH_ATTENTION="true"
 $env:OLLAMA_KV_CACHE_TYPE="q8_0"
@@ -46,46 +62,8 @@ Start-Sleep -Seconds 2
 ollama serve
 ```
 
-## Commands
+## Documentation
 
-```bash
-# Run benchmark
-node test-quality.js 8001 original_rag
-
-# Start backend
-cd original_rag/backend && python -m uvicorn api.main:app --port 8001
-
-# Check Ollama models
-ollama list
-```
-
-## Latency Optimization Roadmap
-
-Current 34s latency breakdown:
-- Pipeline (intent, retrieval, rerank): ~2s (6%)
-- LLM Prefill (context processing): ~25s (73%)
-- LLM Generation (tokens out): ~7s (21%)
-
-### Planned Optimizations (Not Yet Implemented)
-
-1. **Semantic Caching** - <100ms for repeat/similar queries
-   - Embed query, check similarity to cached Q&A pairs
-   - Bypass LLM entirely for >0.95 similarity matches
-
-2. **Adaptive Context Size** - Reduce prefill for simple queries
-   - Simple queries: 2-3 docs instead of 5
-   - Complex queries: keep 5 docs
-
-3. **Query-Adaptive Model Routing** - Faster model for simple queries
-   - Simple/short: use smaller model (if available)
-   - Complex: use llama3.1:8b
-
-## File Reference
-
-| File | Purpose |
-|------|---------|
-| `nodes.py` | RAG pipeline nodes, intent fallback fix |
-| `context_compressor.py` | LLMLingua (disabled, preserved for future) |
-| `context_filter.py` | Prevents context bleed |
-| `intent_router.py` | 3-layer hybrid intent classification |
-| `test-quality.js` | Benchmark script with session isolation |
+- [original_rag/README.md](original_rag/README.md) - Developer reference
+- [original_rag/docs/](original_rag/docs/) - Architecture and pipeline docs
+- [original_rag/CLAUDE.md](original_rag/CLAUDE.md) - RAG-specific configuration

@@ -1,148 +1,130 @@
-# Axiom RAG
+# Axiom RAG - Backend & Frontend
 
-**Your documents. Your machine. Real answers.**
+This directory contains the complete Axiom RAG application.
 
-<p align="center">
-  <img src="https://img.shields.io/badge/100%25-Local_First-green" alt="Local First">
-  <img src="https://img.shields.io/badge/Source-Citations-blue" alt="Source Citations">
-  <img src="https://img.shields.io/badge/Hallucination-Protected-red" alt="Hallucination Protected">
-</p>
-
----
-
-## The Problem
-
-You upload a document to ChatGPT. You ask a question. It gives you a confident answer.
-
-**But is it actually in your document?** You have no idea.
-
----
-
-## The Solution
-
-Axiom is a document Q&A system that runs entirely on your machine. Upload any document, ask questions, and get answers that are:
-
-- **Grounded** — Every answer comes with source citations
-- **Private** — Your data never leaves your machine
-- **Honest** — Built-in hallucination detection catches false claims
-
----
-
-## How It Works
+## Directory Structure
 
 ```
-1. Upload your documents (PDF, TXT, MD, DOCX)
-2. Ask a question
-3. Get an answer with exact source citations
+original_rag/
+├── backend/           # Python FastAPI application
+├── frontend/          # React TypeScript application
+├── docs/              # Technical documentation
+├── RAG_Scale_Tests/   # Test documents for scale testing
+├── Toonify/           # Utility scripts
+└── archive/           # Historical files
 ```
 
-That's it. No API keys. No cloud. No data leaving your machine.
+## Running the Application
 
----
-
-## Features
-
-| Feature | What It Does |
-|---------|--------------|
-| **Chat Isolation** | Each conversation has its own document set |
-| **Source Citations** | See exactly which document and page answered your question |
-| **Hybrid Search** | Finds both semantic matches AND exact keywords |
-| **Smart Chunking** | Returns full context, not choppy fragments |
-| **Hallucination Check** | Flags answers that aren't grounded in your documents |
-| **Conversation Memory** | "Tell me more" expands the previous answer, not a new search |
-
----
-
-## Quick Start
-
-### Prerequisites
-
-- Python 3.11+
-- Node.js 18+
-- [Ollama](https://ollama.ai) (for local LLM)
-
-### Setup
+### Backend (Port 8001)
 
 ```bash
-# Clone
-git clone https://github.com/yourusername/axiom-rag
-cd axiom-rag
-
-# Backend
-cd original_rag/backend
+cd backend
 pip install -r requirements.txt
+uvicorn api.main:app --host 0.0.0.0 --port 8001 --reload
+```
 
-# Start Ollama
-ollama pull llama3.1:8b
-ollama serve
+### Frontend (Port 8080)
 
-# Run backend
-uvicorn api.main:app --port 8001
-
-# Frontend (new terminal)
-cd ../frontend
+```bash
+cd frontend
 npm install
 npm run dev
 ```
 
-Open http://localhost:5173 and start chatting.
+### Ollama (Port 11434)
 
----
+```bash
+ollama pull llama3.1:8b
+ollama serve
+```
 
-## Performance
+The frontend will be available at `http://localhost:8080`.
 
-| Metric | Value |
-|--------|-------|
-| **Answer Quality** | 96% accuracy (8/8 benchmark tests) |
-| **Response Time** | ~34s average (6GB VRAM) |
-| **Embedding Speed** | 0.5s per 100 chunks |
-| **Search Latency** | <100ms |
-| **Reranking** | ~200ms for 50 documents |
-| **Memory Usage** | <500MB |
+## Backend Architecture
 
----
+### Core Modules
 
-## Tech Stack
+| Module | Purpose |
+|--------|---------|
+| `api/` | FastAPI routes, request/response handling |
+| `rag/` | Pipeline orchestration, nodes, intent routing |
+| `ingest/` | Document parsing, chunking, embedding |
+| `vectorstore/` | ChromaDB operations, hybrid search |
+| `memory/` | SQLite/Redis session storage |
+| `config/` | Application settings |
 
-| Layer | Technology |
-|-------|------------|
-| **Frontend** | React, TypeScript, Vite, Tailwind, shadcn/ui |
-| **Backend** | FastAPI, LangGraph |
-| **Embeddings** | FastEmbed (BAAI/bge-small-en-v1.5) |
-| **Vector Store** | ChromaDB |
-| **Reranker** | Cross-Encoder (ms-marco-MiniLM) |
-| **LLM** | Ollama (llama3.1:8b) |
+### RAG Pipeline Flow
 
----
+```
+Query → Intent Classification → [Non-RAG Handler | RAG Path]
+                                        ↓
+                              Query Routing (simple/complex)
+                                        ↓
+                              Hybrid Retrieval (Vector + BM25)
+                                        ↓
+                              Parent Expansion
+                                        ↓
+                              Context Filter
+                                        ↓
+                              Cross-Encoder Reranking
+                                        ↓
+                              LLM Generation
+                                        ↓
+                              Hallucination Check
+                                        ↓
+                              Response + Citations
+```
 
-## Requirements
+### Key Implementation Details
 
-| Component | Minimum |
-|-----------|---------|
-| RAM | 4GB |
-| VRAM | 6GB (for llama3.1:8b) |
-| Disk | 10GB |
-| GPU | Optional (CPU works) |
+**Intent Router**: 3-layer classification (hard rules → semantic similarity → LLM fallback) that routes greetings and follow-ups without invoking the full RAG pipeline.
 
----
+**Hybrid Search**: Combines FastEmbed vector search with BM25 keyword matching using Reciprocal Rank Fusion (RRF). Handles both semantic queries and exact term matching.
 
-## Roadmap
+**Parent-Child Chunking**: Small chunks (400 chars) for precise retrieval, expanded to parent context (2000 chars) before LLM generation.
 
-- [x] Chat-scoped document isolation
-- [x] Real-time streaming responses
-- [x] Source citations with relevance scores
-- [x] Hallucination detection
-- [x] Hybrid search (vector + keyword)
-- [ ] Cloud mode (optional Gemini/OpenAI)
-- [ ] Multi-user support
-- [ ] Document preview
+**Hallucination Detection**: Fast deterministic check (word/trigram overlap) with LLM fallback for ambiguous cases.
 
----
+## Frontend Architecture
 
-## License
+React application with TypeScript, Vite, Tailwind CSS, and shadcn/ui components.
 
-MIT
+### Key Features
 
----
+- Chat interface with streaming responses
+- Document upload with drag-and-drop
+- Source citation display with relevance scores
+- Session management (create, rename, delete chats)
+- Responsive sidebar with chat history
 
-**Axiom RAG** — Answers you can trust.
+## Configuration
+
+Backend configuration via environment variables or `config/settings.py`:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `LLM_PROVIDER` | ollama | LLM backend (ollama) |
+| `OLLAMA_MODEL` | llama3.1:8b | Model for generation |
+| `EMBEDDING_PROVIDER` | fastembed | Embedding backend |
+| `VECTOR_PROVIDER` | chroma | Vector store |
+| `MEMORY_BACKEND` | sqlite | Session storage |
+
+## Docker Deployment
+
+```bash
+cd backend
+docker-compose up -d
+```
+
+See `docs/DOCKER_DEPLOYMENT.md` for detailed instructions.
+
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| `docs/PROJECT_ARCHITECTURE.md` | System design overview |
+| `docs/RAG_Pipeline_Architecture.md` | Detailed pipeline documentation |
+| `docs/ENGINEERING_JOURNEY.md` | Optimization decisions and history |
+| `docs/BENCHMARK_RESULTS.md` | Performance measurements |
+| `docs/adrs/` | Architecture Decision Records |
